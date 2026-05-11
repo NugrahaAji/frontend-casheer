@@ -1,65 +1,165 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { IconShoppingCart, IconAlertCircle, IconEye, IconEyeOff } from "@tabler/icons-react";
+
+export default function LoginPage() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMsg("");
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Token is stored as httpOnly cookie by the backend automatically
+        // Save user info for client-side usage
+        if (data.role) {
+          localStorage.setItem("role", data.role);
+        }
+        if (data.username) {
+          localStorage.setItem("username", data.username);
+        }
+        if (data.role === 'owner') {
+          router.push("/owner/dashboard");
+        } else {
+          router.push("/dashboard");
+        }
+      } else {
+        setErrorMsg(data.message || "Gagal melakukan login. Periksa kembali kredensial Anda.");
+      }
+    } catch (error) {
+      setErrorMsg("Terjadi kesalahan jaringan. Tidak dapat terhubung ke server.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#f7f8f9] p-4">
+      <div className="w-full max-w-[400px] flex flex-col items-center">
+        {/* Logo and Header */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="bg-[#09090b] text-white p-3 rounded-2xl mb-4">
+            <IconShoppingCart className="w-8 h-8" stroke={1.5} />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-[#09090b]">Casheer</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Masuk ke akun Anda
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Login Form Card */}
+        <div className="w-full bg-white border border-zinc-200/60 rounded-xl p-6 sm:p-8 shadow-sm">
+          {errorMsg && (
+            <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+              <IconAlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" stroke={1.5} />
+              <p className="text-[13px] text-red-600 font-medium">{errorMsg}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-[13px] font-semibold text-zinc-800">
+                  Email atau Username
+                </Label>
+                <Input 
+                  id="username" 
+                  type="text" 
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Masukkan email atau username" 
+                  required 
+                  className="h-10 bg-[#f4f4f5] border-transparent focus-visible:ring-1 focus-visible:ring-zinc-300 text-sm placeholder:text-zinc-400 rounded-lg transition-colors"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-[13px] font-semibold text-zinc-800">
+                  Kata Sandi
+                </Label>
+                <div className="relative">
+                  <Input 
+                    id="password" 
+                    type={showPassword ? "text" : "password"} 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Masukkan kata sandi" 
+                    required 
+                    className="h-10 pr-10 bg-[#f4f4f5] border-transparent focus-visible:ring-1 focus-visible:ring-zinc-300 text-sm placeholder:text-zinc-400 rounded-lg transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 focus:outline-none transition-colors"
+                  >
+                    {showPassword ? (
+                      <IconEyeOff className="w-5 h-5" stroke={1.5} />
+                    ) : (
+                      <IconEye className="w-5 h-5" stroke={1.5} />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox id="remember" className="border-zinc-300 data-[state=checked]:bg-[#09090b] rounded-[4px]" />
+              <label
+                htmlFor="remember"
+                className="text-sm font-medium leading-none text-zinc-600 peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                Ingat saya
+              </label>
+            </div>
+
+            <div className="space-y-4 pt-2">
+              <Button 
+                type="submit" 
+                className="w-full h-10 bg-[#09090b] hover:bg-[#27272a] text-white rounded-lg font-medium transition-colors" 
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  "Masuk"
+                )}
+              </Button>
+
+              <div className="text-center">
+                <a href="#" className="text-[13px] font-medium text-zinc-800 hover:text-zinc-600 transition-colors">
+                  Lupa kata sandi?
+                </a>
+              </div>
+            </div>
+          </form>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
