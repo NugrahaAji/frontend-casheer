@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -13,12 +13,11 @@ import {
 } from "recharts";
 import {
   IconCalendarEvent,
-  IconLock
+  IconPackage
 } from "@tabler/icons-react";
 import { format, subDays } from "date-fns";
 import { id } from "date-fns/locale";
 
-// Generate dummy data for charts
 const generateChartData = (days: number) => {
   const data = [];
   const today = new Date();
@@ -27,13 +26,12 @@ const generateChartData = (days: number) => {
     data.push({
       date: format(date, "d MMM", { locale: id }),
       fullDate: format(date, "dd MMM yyyy", { locale: id }),
-      penjualan: Math.floor(Math.random() * 5000000) + 1000000, // random between 1jt and 6jt
+      penjualan: Math.floor(Math.random() * 5000000) + 1000000,
     });
   }
   return data;
 };
 
-// Top 5 products dummy
 const topProducts = [
   { id: 1, name: "Indomie Goreng", sold: 95, revenue: 157500 },
   { id: 2, name: "Aqua 600ml", sold: 58, revenue: 36000 },
@@ -42,7 +40,6 @@ const topProducts = [
   { id: 5, name: "Sabun Lifebuoy", sold: 72, revenue: 264000 },
 ];
 
-// Recent activities dummy
 const recentActivities = [
   { id: 1, type: "Penjualan Baru", trx: "TRX-2026-00421", amount: 125000, date: "30 Apr 2026, 14:32" },
   { id: 2, type: "Penjualan Baru", trx: "TRX-2026-00420", amount: 78000, date: "30 Apr 2026, 13:15" },
@@ -51,24 +48,47 @@ const recentActivities = [
   { id: 5, type: "Penjualan Baru", trx: "TRX-2026-00417", amount: 89000, date: "29 Apr 2026, 16:05" },
 ];
 
-// Low stock dummy
-const lowStocks = [
-  { id: 1, name: "Aqua 600ml", sku: "AQ-002", stock: 8 },
-  { id: 2, name: "Roma Kelapa", sku: "ROM-004", stock: 0 },
-];
-
-const formatRupiah = (number: number) => {
-  return new Intl.NumberFormat("id-ID", {
+const formatRupiah = (number: number) =>
+  new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(number);
-};
 
 export default function OwnerDashboardPage() {
   const [dateRange, setDateRange] = useState("14");
   const [chartData, setChartData] = useState(() => generateChartData(14));
+  const [lowStocks, setLowStocks] = useState<any[]>([]);
+  const [isLoadingStocks, setIsLoadingStocks] = useState(true);
+
+  useEffect(() => {
+    const fetchLowStocks = async () => {
+      try {
+        const res = await fetch("/api/product/fisik", { credentials: "include" });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          const products = data.data[0]?.produk || [];
+          const low = products
+            .map((p: any) => ({
+              id: p.kodeProduk,
+              name: p.namaProduk,
+              sku: p.kodeProduk.slice(0, 8).toUpperCase(),
+              stock: p.stock?.reduce((acc: number, b: any) => acc + (b.stok || 0), 0) || 0,
+            }))
+            .filter((p: any) => p.stock <= 10)
+            .sort((a: any, b: any) => a.stock - b.stock)
+            .slice(0, 5);
+          setLowStocks(low);
+        }
+      } catch (e) {
+        console.error("Failed to fetch low stocks", e);
+      } finally {
+        setIsLoadingStocks(false);
+      }
+    };
+    fetchLowStocks();
+  }, []);
 
   const handleDateRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const days = parseInt(e.target.value);
@@ -150,28 +170,11 @@ export default function OwnerDashboardPage() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
-                <XAxis
-                  dataKey="date"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#71717a', fontSize: 12 }}
-                  dy={10}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#71717a', fontSize: 12 }}
-                  tickFormatter={(value) => `Rp ${value / 1000000}jt`}
-                />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} tickFormatter={(value) => `Rp ${value / 1000000}jt`} />
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f4f4f5' }} />
                 <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
-                <Bar
-                  dataKey="penjualan"
-                  name="Penjualan"
-                  fill="#14b8a6"
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={40}
-                />
+                <Bar dataKey="penjualan" name="Penjualan" fill="#14b8a6" radius={[4, 4, 0, 0]} maxBarSize={40} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -183,7 +186,6 @@ export default function OwnerDashboardPage() {
           <div className="lg:col-span-2 bg-white border border-zinc-100 rounded-xl p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-zinc-900 mb-1">Produk Terlaris</h2>
             <p className="text-sm text-zinc-500 mb-6">Top 5 produk dengan penjualan tertinggi</p>
-
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="text-zinc-500 border-b border-zinc-100">
@@ -213,13 +215,12 @@ export default function OwnerDashboardPage() {
           <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-zinc-900 mb-1">Aktivitas Terbaru</h2>
             <p className="text-sm text-zinc-500 mb-6">Timeline aktivitas terkini</p>
-
             <div className="space-y-6">
               {recentActivities.map((activity) => (
                 <div key={activity.id} className="flex gap-4">
                   <div className="flex-shrink-0 mt-1">
-                    <div className="w-8 h-8 rounded-full bg-zinc-50 flex items-center justify-center border border-zinc-100">
-                      <IconLock className="w-4 h-4 text-zinc-400" stroke={1.5} />
+                    <div className="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center border border-teal-100">
+                      <IconPackage className="w-4 h-4 text-teal-500" stroke={1.5} />
                     </div>
                   </div>
                   <div>
@@ -235,28 +236,52 @@ export default function OwnerDashboardPage() {
           </div>
         </div>
 
-        {/* Low Stock */}
+        {/* Low Stock — fetched from backend */}
         <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-zinc-900 mb-1">Stok Menipis</h2>
-          <p className="text-sm text-zinc-500 mb-6">Produk dengan stok di bawah minimum</p>
-
+          <p className="text-sm text-zinc-500 mb-6">Produk dengan stok di bawah minimum (≤ 10)</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-zinc-500 border-b border-zinc-100">
                 <tr>
                   <th className="pb-3 font-medium">Produk</th>
-                  <th className="pb-3 font-medium">SKU</th>
+                  <th className="pb-3 font-medium">Kode</th>
                   <th className="pb-3 font-medium">Stok</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-50">
-                {lowStocks.map((item) => (
-                  <tr key={item.id}>
-                    <td className="py-4 font-medium text-zinc-900">{item.name}</td>
-                    <td className="py-4 text-zinc-500">{item.sku}</td>
-                    <td className="py-4 font-medium text-rose-600">{item.stock} tersisa</td>
+                {isLoadingStocks ? (
+                  <tr>
+                    <td colSpan={3} className="py-8 text-center text-zinc-500">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
+                        Memuat data stok...
+                      </div>
+                    </td>
                   </tr>
-                ))}
+                ) : lowStocks.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-8 text-center text-zinc-500 text-sm">
+                      ✅ Semua stok dalam kondisi aman.
+                    </td>
+                  </tr>
+                ) : (
+                  lowStocks.map((item) => (
+                    <tr key={item.id}>
+                      <td className="py-4 font-medium text-zinc-900">{item.name}</td>
+                      <td className="py-4 text-zinc-500 font-mono text-xs">{item.sku}</td>
+                      <td className="py-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          item.stock === 0
+                            ? "bg-red-100 text-red-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}>
+                          {item.stock === 0 ? "Habis" : `${item.stock} tersisa`}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

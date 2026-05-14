@@ -50,15 +50,16 @@ export default function DashboardPage() {
       setIsLoadingProducts(true);
       try {
         const [resFisik, resDigital] = await Promise.all([
-          fetch("/api/product/fisik"),
-          fetch("/api/product/digital")
+          fetch("/api/product/fisik", { credentials: "include" }),
+          fetch("/api/product/digital", { credentials: "include" })
         ]);
 
         const dataFisik = resFisik.ok ? await resFisik.json() : { success: false };
         const dataDigital = resDigital.ok ? await resDigital.json() : { success: false };
 
-        const fisik = dataFisik.success ? (dataFisik.data?.produk || []) : [];
-        const digital = dataDigital.success ? (dataDigital.data?.produk || []) : [];
+        // Backend returns array: [{ kategori, produk: [...] }]
+        const fisik = dataFisik.success ? (dataFisik.data[0]?.produk || []) : [];
+        const digital = dataDigital.success ? (dataDigital.data[0]?.produk || []) : [];
 
         // format to match expected properties
         const formattedFisik = fisik.map((p: any) => ({
@@ -69,7 +70,7 @@ export default function DashboardPage() {
           type: p.kepemilikan,
           retailPrice: p.pricing?.eceran?.hargaJual || 0,
           wholesalePrice: p.pricing?.grosir?.[0]?.hargaJual || p.pricing?.eceran?.hargaJual || 0,
-          stockRaw: p.stock || [],  // keep raw array for batch info
+          stockRaw: p.stock || [],
           stock: p.stock?.reduce((acc: number, cur: any) => acc + (cur.stok || 0), 0) || 0
         }));
 
@@ -211,7 +212,7 @@ export default function DashboardPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setTrxSuccess(`Transaksi berhasil! ID: ${data.data?._id || ""}`);
+        setTrxSuccess(`Transaksi berhasil! No. ${data.data?.nomorTransaksi || data.data?._id || ""}`);
         setTimeout(() => {
           setCart([]);
           setIsPaymentModalOpen(false);

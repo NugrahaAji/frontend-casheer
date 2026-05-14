@@ -104,9 +104,9 @@ export default function StokBarangPage() {
   const fetchProducts = async (kategori: string) => {
     setIsLoadingProducts(true);
     try {
-      const res = await fetch(`/api/product/${kategori}`);
+      const res = await fetch(`/api/product/${kategori}`, { credentials: "include" });
       const data = await res.json();
-      setProducts(res.ok && data.success ? (data.data?.produk || []) : []);
+      setProducts(res.ok && data.success ? (data.data[0]?.produk || []) : []);
     } catch { setProducts([]); }
     finally { setIsLoadingProducts(false); }
   };
@@ -144,7 +144,7 @@ export default function StokBarangPage() {
 
     setIsBatchSubmitting(true); setBatchError(""); setBatchSuccess("");
     try {
-      const res = await fetch(`/api/product/fisik/${batchTarget.kodeProduk}/`, {
+      const res = await fetch(`/api/product/${activeTab}/${batchTarget.kodeProduk}/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
