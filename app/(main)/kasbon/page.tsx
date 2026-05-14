@@ -51,10 +51,10 @@ export default function KasbonPage() {
   const fetchKasbon = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/transaction");
+      const res = await fetch("/api/transaction", { credentials: "include" });
       const data = res.ok ? await res.json() : { success: false };
       if (data.success) {
-        // Only utang (debt) transactions
+        // Tampilkan semua transaksi utang (belum lunas)
         const utang = (data.data || []).filter((t: Transaction) => t.status === "utang");
         setKasbonList(utang);
       }

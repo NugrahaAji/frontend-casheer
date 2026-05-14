@@ -189,16 +189,19 @@ export default function DashboardPage() {
           return {
             kodeProduk: item.product.kodeProduk,
             qty: item.qty,
-            harga: item.harga || item.product.retailPrice,
+            harga: item.harga || item.product.retailPrice,  // harga manual untuk digital
           };
         }
-        // Fisik: pick batch with available stock, or first batch
+        // Fisik: pilih batch yang stoknya cukup, atau batch pertama
         const stockBatches: any[] = item.product.stockRaw || [];
         const activeBatch = stockBatches.find((b: any) => b.stok >= item.qty) || stockBatches[0];
+        // Map pricingMode ke tipeHarga yang dikenali backend: retail->ecer, wholesale->grosir
+        const tipeHarga = item.pricingMode === "wholesale" ? "grosir" : "ecer";
         return {
           kodeProduk: item.product.kodeProduk,
           qty: item.qty,
           batch: activeBatch?.batch ?? 1,
+          tipeHarga,  // wajib untuk produk fisik
         };
       }),
     };
