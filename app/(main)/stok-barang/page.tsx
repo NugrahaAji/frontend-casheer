@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
-  IconPlus, IconAlertCircle, IconCheck, IconTrash, IconSearch, IconPackage, IconSelector, IconPencil, IconDots, IconStack2
+  IconPlus, IconAlertCircle, IconCheck, IconTrash, IconSearch, IconPackage, IconSelector, IconPencil, IconDots, IconStack2, IconChevronLeft, IconChevronRight
 } from "@tabler/icons-react";
 
 interface GrosirPricing { jumlah: number; hargaJual: number; }
@@ -75,6 +75,10 @@ export default function StokBarangPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   // Form
   const [formKategori, setFormKategori] = useState<"fisik" | "digital">("fisik");
   const [namaProduk, setNamaProduk] = useState("");
@@ -112,6 +116,10 @@ export default function StokBarangPage() {
   };
 
   useEffect(() => { fetchProducts(activeTab); }, [activeTab]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, pageSize]);
 
   const resetForm = () => {
     setNamaProduk(""); setKategoriProduk(""); setKepemilikan("sendiri");
@@ -250,6 +258,12 @@ export default function StokBarangPage() {
     p.kategoriProduk.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const totalItems = filteredProducts.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIdx = (currentPage - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, totalItems);
+  const paginatedProducts = filteredProducts.slice(startIdx, endIdx);
+
   const getTotalStock = (p: Product) => p.stock?.reduce((s, b) => s + b.stok, 0) || 0;
 
   return (
@@ -315,15 +329,17 @@ export default function StokBarangPage() {
                 {/* Kepemilikan */}
                 <div className="space-y-2">
                   <Label className="text-[13px] font-semibold text-zinc-800">Kepemilikan <span className="text-red-500">*</span></Label>
-                  <Select value={kepemilikan} onValueChange={(v: "sendiri" | "titipan") => setKepemilikan(v)}>
-                    <SelectTrigger className="h-10 bg-[#f4f4f5] border-transparent focus:ring-1 focus:ring-zinc-300 text-sm rounded-lg">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sendiri">Barang Sendiri</SelectItem>
-                      <SelectItem value="titipan">Barang Titipan</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="relative">
+                    <select
+                      value={kepemilikan}
+                      onChange={(e) => setKepemilikan(e.target.value as "sendiri" | "titipan")}
+                      className="w-full h-10 px-3 pr-10 bg-[#f4f4f5] border-transparent rounded-xl text-sm font-medium text-zinc-700 outline-none focus:ring-1 focus:ring-zinc-300 appearance-none cursor-pointer"
+                    >
+                      <option value="sendiri">Barang Sendiri</option>
+                      <option value="titipan">Barang Titipan</option>
+                    </select>
+                    <IconSelector className="w-4 h-4 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
 
                 {/* Harga Modal Penitip (only for titipan) */}
@@ -485,50 +501,100 @@ export default function StokBarangPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredProducts.map((product, index) => (
-                    <TableRow key={product.kodeProduk}>
-                      <TableCell className="text-center text-zinc-500 font-medium">{index + 1}</TableCell>
-                      <TableCell className="font-medium text-zinc-900">{product.namaProduk}</TableCell>
-                      <TableCell className="text-zinc-600">{product.kategoriProduk}</TableCell>
-                      <TableCell>
-                        <Badge variant={product.kepemilikan === "sendiri" ? "default" : "secondary"} className="capitalize text-xs">{product.kepemilikan}</Badge>
-                      </TableCell>
-                      {activeTab === "fisik" ? (
-                        <>
-                          <TableCell className="font-medium text-zinc-900">{product.pricing?.eceran ? formatRupiah(product.pricing.eceran.hargaJual) : "-"}</TableCell>
-                          <TableCell>
-                            <span className={`font-medium ${getTotalStock(product) <= 10 ? "text-rose-600" : "text-zinc-900"}`}>{getTotalStock(product)}</span>
-                          </TableCell>
-                        </>
-                      ) : (
-                        <TableCell className="font-medium text-zinc-900">{product.biayaAdmin ? formatRupiah(product.biayaAdmin) : "-"}</TableCell>
-                      )}
-                      <TableCell>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
-                          product.status === "aktif" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-zinc-100 text-zinc-500 border border-zinc-200"
-                        }`}>{product.status}</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {activeTab === "fisik" && (
-                            <Button variant="ghost" size="icon" onClick={() => openBatchDialog(product)} className="h-8 w-8 text-teal-600 hover:text-teal-700 hover:bg-teal-50" title="Tambah batch stok">
-                              <IconStack2 className="h-4 w-4" stroke={1.5} />
+                  paginatedProducts.map((product, index) => {
+                    const displayedIndex = startIdx + index + 1;
+                    return (
+                      <TableRow key={product.kodeProduk}>
+                        <TableCell className="text-center text-zinc-500 font-medium">{displayedIndex}</TableCell>
+                        <TableCell className="font-medium text-zinc-900">{product.namaProduk}</TableCell>
+                        <TableCell className="text-zinc-600">{product.kategoriProduk}</TableCell>
+                        <TableCell>
+                          <Badge variant={product.kepemilikan === "sendiri" ? "default" : "secondary"} className="capitalize text-xs">{product.kepemilikan}</Badge>
+                        </TableCell>
+                        {activeTab === "fisik" ? (
+                          <>
+                            <TableCell className="font-medium text-zinc-900">{product.pricing?.eceran ? formatRupiah(product.pricing.eceran.hargaJual) : "-"}</TableCell>
+                            <TableCell>
+                              <span className={`font-medium ${getTotalStock(product) <= 10 ? "text-rose-600" : "text-zinc-900"}`}>{getTotalStock(product)}</span>
+                            </TableCell>
+                          </>
+                        ) : (
+                          <TableCell className="font-medium text-zinc-900">{product.biayaAdmin ? formatRupiah(product.biayaAdmin) : "-"}</TableCell>
+                        )}
+                        <TableCell>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                            product.status === "aktif" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                          }`}>{product.status}</span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            {activeTab === "fisik" && (
+                              <Button variant="ghost" size="icon" onClick={() => openBatchDialog(product)} className="h-8 w-8 text-teal-600 hover:text-teal-700 hover:bg-teal-50" title="Tambah batch stok">
+                                <IconStack2 className="h-4 w-4" stroke={1.5} />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100" title="Edit produk">
+                              <IconPencil className="h-4 w-4" stroke={1.5} />
                             </Button>
-                          )}
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100" title="Edit produk">
-                            <IconPencil className="h-4 w-4" stroke={1.5} />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(product.kodeProduk)} className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50" title="Hapus produk">
-                            <IconTrash className="h-4 w-4" stroke={1.5} />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(product.kodeProduk)} className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50" title="Hapus produk">
+                              <IconTrash className="h-4 w-4" stroke={1.5} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Footer */}
+          {!isLoadingProducts && totalItems > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-zinc-100 bg-zinc-50/50">
+              <div className="flex items-center gap-2 text-sm text-zinc-500">
+                <span>Tampilkan</span>
+                <div className="relative flex items-center">
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="bg-[#f4f4f5] text-zinc-700 text-sm font-medium rounded-xl h-9 px-3 pr-8 outline-none border-transparent cursor-pointer appearance-none animate-none"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <IconSelector className="w-3.5 h-3.5 text-zinc-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+                <span>data per halaman</span>
+              </div>
+
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="h-8 px-2 flex items-center gap-1 bg-white border-zinc-200 hover:bg-zinc-50 text-xs font-medium text-zinc-600"
+                >
+                  <IconChevronLeft className="h-4 w-4" stroke={2} />
+                </Button>
+                <div className="text-xs font-semibold text-zinc-700 px-3 py-1 bg-white border border-zinc-200 rounded">
+                  {currentPage} dari {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="h-8 px-2 flex items-center gap-1 bg-white border-zinc-200 hover:bg-zinc-50 text-xs font-medium text-zinc-600"
+                >
+                  <IconChevronRight className="h-4 w-4" stroke={2} />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -13,40 +13,40 @@ import {
 } from "recharts";
 import {
   IconCalendarEvent,
-  IconPackage
+  IconPackage,
+  IconCurrencyDollar,
+  IconReceipt,
+  IconTrendingUp
 } from "@tabler/icons-react";
 import { format, subDays } from "date-fns";
 import { id } from "date-fns/locale";
 
-const generateChartData = (days: number) => {
+const generateChartData = (days: number, apiData: any[] = []) => {
   const data = [];
   const today = new Date();
+  
+  // Buat map cepat untuk pencarian penjualan real-time
+  const apiMap: Record<string, number> = {};
+  if (Array.isArray(apiData)) {
+    apiData.forEach((item) => {
+      // format tanggal dari backend "YYYY-MM-DD"
+      apiMap[item.date] = item.totalSales || 0;
+    });
+  }
+
   for (let i = days - 1; i >= 0; i--) {
     const date = subDays(today, i);
+    const dateKey = format(date, "yyyy-MM-dd");
+    const penjualan = apiMap[dateKey] || 0;
+
     data.push({
       date: format(date, "d MMM", { locale: id }),
       fullDate: format(date, "dd MMM yyyy", { locale: id }),
-      penjualan: Math.floor(Math.random() * 5000000) + 1000000,
+      penjualan: penjualan,
     });
   }
   return data;
 };
-
-const topProducts = [
-  { id: 1, name: "Indomie Goreng", sold: 95, revenue: 157500 },
-  { id: 2, name: "Aqua 600ml", sold: 58, revenue: 36000 },
-  { id: 3, name: "Teh Botol 350ml", sold: 170, revenue: 660000 },
-  { id: 4, name: "Roma Kelapa", sold: 50, revenue: 8000 },
-  { id: 5, name: "Sabun Lifebuoy", sold: 72, revenue: 264000 },
-];
-
-const recentActivities = [
-  { id: 1, type: "Penjualan Baru", trx: "TRX-2026-00421", amount: 125000, date: "30 Apr 2026, 14:32" },
-  { id: 2, type: "Penjualan Baru", trx: "TRX-2026-00420", amount: 78000, date: "30 Apr 2026, 13:15" },
-  { id: 3, type: "Penjualan Baru", trx: "TRX-2026-00419", amount: 245000, date: "30 Apr 2026, 11:45" },
-  { id: 4, type: "Penjualan Baru", trx: "TRX-2026-00418", amount: 56000, date: "29 Apr 2026, 17:20" },
-  { id: 5, type: "Penjualan Baru", trx: "TRX-2026-00417", amount: 89000, date: "29 Apr 2026, 16:05" },
-];
 
 const formatRupiah = (number: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -58,42 +58,150 @@ const formatRupiah = (number: number) =>
 
 export default function OwnerDashboardPage() {
   const [dateRange, setDateRange] = useState("14");
-  const [chartData, setChartData] = useState(() => generateChartData(14));
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [isLoadingChart, setIsLoadingChart] = useState(true);
+
+  // States untuk summary (KPI)
+  const [summary, setSummary] = useState({
+    totalRevenue: 0,
+    totalExpense: 0,
+    netProfit: 0,
+  });
+  const [isLoadingSummary, setIsLoadingSummary] = useState(true);
+
+  // States untuk Stok Menipis
   const [lowStocks, setLowStocks] = useState<any[]>([]);
   const [isLoadingStocks, setIsLoadingStocks] = useState(true);
 
-  useEffect(() => {
-    const fetchLowStocks = async () => {
-      try {
-        const res = await fetch("/api/product/fisik", { credentials: "include" });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          const products = data.data[0]?.produk || [];
-          const low = products
-            .map((p: any) => ({
-              id: p.kodeProduk,
-              name: p.namaProduk,
-              sku: p.kodeProduk.slice(0, 8).toUpperCase(),
-              stock: p.stock?.reduce((acc: number, b: any) => acc + (b.stok || 0), 0) || 0,
-            }))
-            .filter((p: any) => p.stock <= 10)
-            .sort((a: any, b: any) => a.stock - b.stock)
-            .slice(0, 5);
-          setLowStocks(low);
-        }
-      } catch (e) {
-        console.error("Failed to fetch low stocks", e);
-      } finally {
-        setIsLoadingStocks(false);
+  // States untuk Produk Terlaris
+  const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [isLoadingTopProducts, setIsLoadingTopProducts] = useState(true);
+
+  // States untuk Aktivitas Terbaru
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(true);
+
+  // ─── Fetch Data Dashboard ──────────────────────────────────────────────────
+  const fetchSummary = async (days: number) => {
+    setIsLoadingSummary(true);
+    try {
+      const res = await fetch(`/api/dashboard/owner/summary?days=${days}`, { credentials: "include" });
+      const data = await res.json();
+      if (res.ok && data.success && data.data) {
+        setSummary({
+          totalRevenue: data.data.totalRevenue || 0,
+          totalExpense: data.data.totalExpense || 0,
+          netProfit: data.data.netProfit || 0,
+        });
       }
-    };
+    } catch (e) {
+      console.error("Gagal memuat ringkasan owner:", e);
+    } finally {
+      setIsLoadingSummary(false);
+    }
+  };
+
+  const fetchChartData = async (days: number) => {
+    setIsLoadingChart(true);
+    try {
+      const res = await fetch(`/api/dashboard/owner/sales-chart?days=${days}`, { credentials: "include" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const formatted = generateChartData(days, data.data || []);
+        setChartData(formatted);
+      }
+    } catch (e) {
+      console.error("Gagal memuat grafik penjualan:", e);
+    } finally {
+      setIsLoadingChart(false);
+    }
+  };
+
+  const fetchTopProducts = async () => {
+    setIsLoadingTopProducts(true);
+    try {
+      const res = await fetch("/api/dashboard/owner/top-products?limit=5", { credentials: "include" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const mapped = (data.data || []).map((p: any) => ({
+          id: p.kodeProduk,
+          name: p.namaProduk,
+          sold: p.jumlahTerjual,
+          revenue: p.revenue,
+        }));
+        setTopProducts(mapped);
+      }
+    } catch (e) {
+      console.error("Gagal memuat produk terlaris:", e);
+    } finally {
+      setIsLoadingTopProducts(false);
+    }
+  };
+
+  const fetchRecentActivities = async () => {
+    setIsLoadingActivities(true);
+    try {
+      const res = await fetch("/api/dashboard/owner/recent-transactions?limit=5", { credentials: "include" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const mapped = (data.data || []).map((trx: any) => ({
+          id: trx.kodeTransaksi,
+          type: "Penjualan Baru",
+          trx: trx.kodeTransaksi,
+          amount: trx.total,
+          date: new Date(trx.createdAt).toLocaleString("id-ID", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        }));
+        setRecentActivities(mapped);
+      }
+    } catch (e) {
+      console.error("Gagal memuat transaksi terbaru:", e);
+    } finally {
+      setIsLoadingActivities(false);
+    }
+  };
+
+  const fetchLowStocks = async () => {
+    setIsLoadingStocks(true);
+    try {
+      const res = await fetch("/api/dashboard/owner/low-stock?threshold=10", { credentials: "include" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const mapped = (data.data || []).map((p: any) => ({
+          id: p.kodeProduk,
+          name: p.namaProduk,
+          sku: p.kodeProduk.slice(0, 8).toUpperCase(),
+          stock: p.stokAkhir,
+        }));
+        setLowStocks(mapped);
+      }
+    } catch (e) {
+      console.error("Gagal memuat produk stok menipis:", e);
+    } finally {
+      setIsLoadingStocks(false);
+    }
+  };
+
+  // Muat data saat pertama kali dimuat
+  useEffect(() => {
+    const days = parseInt(dateRange);
+    fetchSummary(days);
+    fetchChartData(days);
+    fetchTopProducts();
+    fetchRecentActivities();
     fetchLowStocks();
   }, []);
 
   const handleDateRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const days = parseInt(e.target.value);
     setDateRange(e.target.value);
-    setChartData(generateChartData(days));
+    fetchSummary(days);
+    fetchChartData(days);
   };
 
   const CustomTooltip = ({ active, payload }: any) => {
@@ -137,25 +245,43 @@ export default function OwnerDashboardPage() {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm">
-            <h3 className="text-sm font-medium text-zinc-500 mb-4">Total Pendapatan</h3>
-            <p className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-2">Rp 43.500.000</p>
-            <div className="flex items-center text-sm text-emerald-600 font-medium">
-              +8.5% dari periode lalu
+          <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center shrink-0 border border-teal-100">
+              <IconCurrencyDollar className="w-6 h-6 text-teal-600" stroke={1.5} />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-zinc-500 mb-1">Total Pendapatan</h3>
+              {isLoadingSummary ? (
+                <div className="h-8 w-32 bg-zinc-100 rounded animate-pulse mt-1" />
+              ) : (
+                <p className="text-2xl sm:text-3xl font-bold text-zinc-900">{formatRupiah(summary.totalRevenue)}</p>
+              )}
             </div>
           </div>
-          <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm">
-            <h3 className="text-sm font-medium text-zinc-500 mb-4">Total Pengeluaran</h3>
-            <p className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-2">Rp 23.700.000</p>
-            <div className="flex items-center text-sm text-rose-600 font-medium">
-              -3.2% dari periode lalu
+          <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center shrink-0 border border-rose-100">
+              <IconReceipt className="w-6 h-6 text-rose-600" stroke={1.5} />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-zinc-500 mb-1">Total Pengeluaran</h3>
+              {isLoadingSummary ? (
+                <div className="h-8 w-32 bg-zinc-100 rounded animate-pulse mt-1" />
+              ) : (
+                <p className="text-2xl sm:text-3xl font-bold text-zinc-900">{formatRupiah(summary.totalExpense)}</p>
+              )}
             </div>
           </div>
-          <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm">
-            <h3 className="text-sm font-medium text-zinc-500 mb-4">Laba Bersih</h3>
-            <p className="text-2xl sm:text-3xl font-bold text-zinc-900 mb-2">Rp 19.800.000</p>
-            <div className="flex items-center text-sm text-emerald-600 font-medium">
-              +12.8% dari periode lalu
+          <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center shrink-0 border border-indigo-100">
+              <IconTrendingUp className="w-6 h-6 text-indigo-600" stroke={1.5} />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-zinc-500 mb-1">Laba Bersih</h3>
+              {isLoadingSummary ? (
+                <div className="h-8 w-32 bg-zinc-100 rounded animate-pulse mt-1" />
+              ) : (
+                <p className="text-2xl sm:text-3xl font-bold text-zinc-900">{formatRupiah(summary.netProfit)}</p>
+              )}
             </div>
           </div>
         </div>
@@ -166,17 +292,24 @@ export default function OwnerDashboardPage() {
             <h2 className="text-lg font-semibold text-zinc-900">Grafik Penjualan Harian</h2>
             <p className="text-sm text-zinc-500">Total penjualan per hari dalam rentang waktu terpilih</p>
           </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} tickFormatter={(value) => `Rp ${value / 1000000}jt`} />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f4f4f5' }} />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
-                <Bar dataKey="penjualan" name="Penjualan" fill="#14b8a6" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-[300px] w-full flex items-center justify-center">
+            {isLoadingChart ? (
+              <div className="flex items-center gap-2 text-zinc-500">
+                <div className="w-4 h-4 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
+                Memuat grafik penjualan...
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} tickFormatter={(value) => `Rp ${value / 1000000}jt`} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f4f4f5' }} />
+                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
+                  <Bar dataKey="penjualan" name="Penjualan" fill="#14b8a6" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -191,21 +324,38 @@ export default function OwnerDashboardPage() {
                 <thead className="text-zinc-500 border-b border-zinc-100">
                   <tr>
                     <th className="pb-3 font-medium">Produk</th>
-                    <th className="pb-3 font-medium">Terjual</th>
-                    <th className="pb-3 font-medium">Pendapatan</th>
+                    <th className="pb-3 font-medium text-right">Terjual</th>
+                    <th className="pb-3 font-medium text-right">Pendapatan</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-50">
-                  {topProducts.map((product, idx) => (
-                    <tr key={product.id}>
-                      <td className="py-4 flex items-center gap-3">
-                        <span className="text-zinc-400 font-medium w-4">{idx + 1}</span>
-                        <span className="font-medium text-zinc-900">{product.name}</span>
+                  {isLoadingTopProducts ? (
+                    <tr>
+                      <td colSpan={3} className="py-8 text-center text-zinc-500">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
+                          Memuat produk terlaris...
+                        </div>
                       </td>
-                      <td className="py-4 text-zinc-600">{product.sold}</td>
-                      <td className="py-4 font-medium text-zinc-900">{formatRupiah(product.revenue)}</td>
                     </tr>
-                  ))}
+                  ) : topProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="py-8 text-center text-zinc-400 text-sm">
+                        Belum ada penjualan tercatat.
+                      </td>
+                    </tr>
+                  ) : (
+                    topProducts.map((product, idx) => (
+                      <tr key={product.id || idx}>
+                        <td className="py-4 flex items-center gap-3">
+                          <span className="text-zinc-400 font-medium w-4">{idx + 1}</span>
+                          <span className="font-medium text-zinc-900">{product.name}</span>
+                        </td>
+                        <td className="py-4 text-right text-zinc-600">{product.sold} unit</td>
+                        <td className="py-4 text-right font-medium text-zinc-900">{formatRupiah(product.revenue)}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -216,22 +366,33 @@ export default function OwnerDashboardPage() {
             <h2 className="text-lg font-semibold text-zinc-900 mb-1">Aktivitas Terbaru</h2>
             <p className="text-sm text-zinc-500 mb-6">Timeline aktivitas terkini</p>
             <div className="space-y-6">
-              {recentActivities.map((activity) => (
-                <div key={activity.id} className="flex gap-4">
-                  <div className="flex-shrink-0 mt-1">
-                    <div className="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center border border-teal-100">
-                      <IconPackage className="w-4 h-4 text-teal-500" stroke={1.5} />
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-zinc-900">{activity.type}</h4>
-                    <p className="text-[13px] text-zinc-500 mt-0.5">
-                      {activity.trx} - {formatRupiah(activity.amount)}
-                    </p>
-                    <p className="text-[12px] text-zinc-400 mt-1">{activity.date}</p>
+              {isLoadingActivities ? (
+                <div className="py-8 text-center text-zinc-500">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
+                    Memuat aktivitas...
                   </div>
                 </div>
-              ))}
+              ) : recentActivities.length === 0 ? (
+                <p className="text-center text-zinc-400 text-sm py-8">Belum ada aktivitas transaksi.</p>
+              ) : (
+                recentActivities.map((activity, idx) => (
+                  <div key={activity.id || idx} className="flex gap-4">
+                    <div className="flex-shrink-0 mt-1">
+                      <div className="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center border border-teal-100">
+                        <IconPackage className="w-4 h-4 text-teal-500" stroke={1.5} />
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-zinc-900">{activity.type}</h4>
+                      <p className="text-[13px] text-zinc-500 mt-0.5">
+                        {activity.trx} - {formatRupiah(activity.amount)}
+                      </p>
+                      <p className="text-[12px] text-zinc-400 mt-1">{activity.date}</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useShift } from "@/lib/hooks/useShift";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 export default function DashboardPage() {
+  const { session, isHydrating } = useShift();
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
   const [cart, setCart] = useState<any[]>([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -348,6 +350,49 @@ export default function DashboardPage() {
       </div>
     </div>
   );
+
+  // ─── Hydration and Shift Check ──────────────────────────────────────────────
+  if (isHydrating) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto space-y-6 animate-pulse">
+          <div className="h-8 bg-zinc-200 rounded-lg w-48" />
+          <div className="h-4 bg-zinc-100 rounded w-64" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="h-28 bg-white border border-zinc-200 rounded-xl" />
+            <div className="h-28 bg-white border border-zinc-200 rounded-xl" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session.isShiftStarted) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center bg-[#f8fafc] p-4 text-center">
+        <div className="max-w-md w-full bg-white border border-zinc-200/80 rounded-2xl p-8 shadow-sm flex flex-col items-center">
+          <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-6 border border-amber-200">
+            <svg className="w-8 h-8 text-amber-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-zinc-900 mb-2">Shift Belum Dimulai</h2>
+          <p className="text-sm text-zinc-500 mb-8 leading-relaxed">
+            Anda harus memasukkan saldo awal kasir (uang modal) untuk memulai transaksi hari ini agar keuangan tercatat dengan rapi.
+          </p>
+          <a
+            href="/keuangan"
+            className="w-full py-3 bg-[#09090b] hover:bg-[#27272a] text-white font-medium rounded-xl text-sm transition-colors shadow-sm text-center flex items-center justify-center gap-2"
+          >
+            Mulai Shift Sekarang
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex overflow-hidden bg-[#f8fafc]">

@@ -10,7 +10,8 @@ import {
   IconUsers,
   IconHome,
   IconBox,
-  IconReceipt
+  IconReceipt,
+  IconArrowBackUp
 } from "@tabler/icons-react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -23,7 +24,9 @@ export function MainSidebar({ className = "" }: { className?: string }) {
   useEffect(() => {
     // Get role from localStorage after component mounts
     const role = localStorage.getItem("role");
-    setUserRole(role || "cashier");
+    setTimeout(() => {
+      setUserRole(role || "cashier");
+    }, 0);
   }, []);
 
   const handleLogout = async () => {
@@ -38,6 +41,9 @@ export function MainSidebar({ className = "" }: { className?: string }) {
       // Clear client-side state regardless of server response
       localStorage.removeItem("role");
       localStorage.removeItem("username");
+      // Clear cookies for middleware detection
+      document.cookie = "role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Strict";
+      document.cookie = "username=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Strict";
       router.push("/");
     }
   };
@@ -71,6 +77,10 @@ export function MainSidebar({ className = "" }: { className?: string }) {
             <a href="/stok-barang" className={`${commonClasses} ${pathname === '/stok-barang' ? activeClasses : inactiveClasses}`}>
                <IconBox className="w-5 h-5 text-zinc-500" stroke={1.5} />
                Stok Barang
+            </a>
+            <a href="/owner/retur" className={`${commonClasses} ${pathname === '/owner/retur' ? activeClasses : inactiveClasses}`}>
+               <IconArrowBackUp className="w-5 h-5 text-zinc-500" stroke={1.5} />
+               Retur Barang
             </a>
             <a href="/laporan" className={`${commonClasses} ${pathname === '/laporan' ? activeClasses : inactiveClasses}`}>
                <IconChartBar className="w-5 h-5 text-zinc-500" stroke={1.5} />

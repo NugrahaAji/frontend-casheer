@@ -35,12 +35,14 @@ export default function LoginPage() {
 
       if (response.ok && data.success) {
         // Token is stored as httpOnly cookie by the backend automatically
-        // Save user info for client-side usage
+        // Save user info for client-side and middleware usage
         if (data.role) {
           localStorage.setItem("role", data.role);
+          document.cookie = `role=${data.role}; path=/; max-age=86400; SameSite=Strict`;
         }
         if (data.username) {
           localStorage.setItem("username", data.username);
+          document.cookie = `username=${data.username}; path=/; max-age=86400; SameSite=Strict`;
         }
         if (data.role === 'owner') {
           router.push("/owner/dashboard");

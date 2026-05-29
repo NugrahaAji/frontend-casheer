@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -18,71 +16,73 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  IconReceipt,
   IconSearch,
-  IconPlus,
   IconPackage,
-  IconAlertCircle,
-  IconWallet,
-  IconCalendarStats,
+  IconAlertTriangle,
+  IconSelector,
+  IconChevronLeft,
+  IconChevronRight,
   IconTrash,
+  IconBoxOff,
 } from "@tabler/icons-react";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-interface Pengeluaran {
-  id: string;
-  tanggal: string;
-  keterangan: string;
-  kategori: string;
-  jumlah: number;
+interface StockAdjustmentItem {
+  kodeProduk: string;
+  qty: number;
+  batch?: number;
+  harga?: number;
+  hargaModal: number;
+  subtotal: number;
+  kategoriProduk: "fisik" | "digital";
 }
 
-// ── Constants ────────────────────────────────────────────────────────────────
+interface StockAdjustment {
+  _id: string;
+  jenis: string;
+  note?: string;
+  items: StockAdjustmentItem[];
+  totalKerugian: number;
+  createdAt: string;
+}
 
-const KATEGORI_LIST = [
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const JENIS_LIST = [
   "Semua",
-  "Listrik",
-  "Gaji",
-  "Sewa",
-  "Pembelian Barang",
-  "Perawatan",
-  "Transportasi",
-  "Lainnya",
+  "sedekah",
+  "hilang",
+  "rusak",
+  "dipakai_sendiri",
+  "sample",
+  "expired",
+  "giveaway",
 ];
 
-const KATEGORI_COLORS: Record<string, string> = {
-  Listrik: "bg-amber-50 text-amber-700 border-amber-200",
-  Gaji: "bg-blue-50 text-blue-700 border-blue-200",
-  Sewa: "bg-purple-50 text-purple-700 border-purple-200",
-  "Pembelian Barang": "bg-green-50 text-green-700 border-green-200",
-  Perawatan: "bg-orange-50 text-orange-700 border-orange-200",
-  Transportasi: "bg-cyan-50 text-cyan-700 border-cyan-200",
-  Lainnya: "bg-zinc-100 text-zinc-700 border-zinc-200",
+const JENIS_LABEL: Record<string, string> = {
+  sedekah: "Sedekah",
+  hilang: "Hilang",
+  rusak: "Rusak",
+  dipakai_sendiri: "Dipakai Sendiri",
+  sample: "Sample",
+  expired: "Expired",
+  giveaway: "Giveaway",
 };
 
-// ── Seed Data ────────────────────────────────────────────────────────────────
+const JENIS_COLORS: Record<string, string> = {
+  sedekah: "bg-green-50 text-green-700 border-green-200",
+  hilang: "bg-red-50 text-red-700 border-red-200",
+  rusak: "bg-orange-50 text-orange-700 border-orange-200",
+  dipakai_sendiri: "bg-blue-50 text-blue-700 border-blue-200",
+  sample: "bg-purple-50 text-purple-700 border-purple-200",
+  expired: "bg-zinc-100 text-zinc-700 border-zinc-200",
+  giveaway: "bg-pink-50 text-pink-700 border-pink-200",
+};
 
-const SEED_DATA: Pengeluaran[] = [
-  { id: "PGL-001", tanggal: new Date(Date.now() - 0 * 86400000).toISOString(), keterangan: "Bayar tagihan listrik bulan ini", kategori: "Listrik", jumlah: 450000 },
-  { id: "PGL-002", tanggal: new Date(Date.now() - 1 * 86400000).toISOString(), keterangan: "Gaji karyawan bulan Mei", kategori: "Gaji", jumlah: 3500000 },
-  { id: "PGL-003", tanggal: new Date(Date.now() - 2 * 86400000).toISOString(), keterangan: "Sewa ruko bulan Mei", kategori: "Sewa", jumlah: 2000000 },
-  { id: "PGL-004", tanggal: new Date(Date.now() - 3 * 86400000).toISOString(), keterangan: "Beli stok bahan baku", kategori: "Pembelian Barang", jumlah: 850000 },
-  { id: "PGL-005", tanggal: new Date(Date.now() - 4 * 86400000).toISOString(), keterangan: "Service AC dan kipas angin", kategori: "Perawatan", jumlah: 300000 },
-  { id: "PGL-006", tanggal: new Date(Date.now() - 5 * 86400000).toISOString(), keterangan: "Ongkos kirim supplier", kategori: "Transportasi", jumlah: 120000 },
-  { id: "PGL-007", tanggal: new Date(Date.now() - 6 * 86400000).toISOString(), keterangan: "Biaya administrasi lain-lain", kategori: "Lainnya", jumlah: 75000 },
-  { id: "PGL-008", tanggal: new Date(Date.now() - 7 * 86400000).toISOString(), keterangan: "Token listrik prabayar", kategori: "Listrik", jumlah: 200000 },
-];
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 const formatRupiah = (num: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -100,402 +100,369 @@ const formatDate = (d: string) =>
     year: "numeric",
   });
 
-// ── Component ────────────────────────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function PengeluaranPage() {
-  const [data, setData] = useState<Pengeluaran[]>(SEED_DATA);
-  const [activeKategori, setActiveKategori] = useState("Semua");
+  const [data, setData] = useState<StockAdjustment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeJenis, setActiveJenis] = useState("Semua");
   const [search, setSearch] = useState("");
-  const [isAddOpen, setIsAddOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<Pengeluaran | null>(null);
+  const [selectedItem, setSelectedItem] = useState<StockAdjustment | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Form state
-  const [formKeterangan, setFormKeterangan] = useState("");
-  const [formKategori, setFormKategori] = useState("");
-  const [formJumlah, setFormJumlah] = useState("");
-  const [formJumlahRaw, setFormJumlahRaw] = useState("");
-  const [formTanggal, setFormTanggal] = useState(
-    new Date().toISOString().split("T")[0]
-  );
-  const [formError, setFormError] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
-  // Filtered + searched data
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/nontransaction", { credentials: "include" });
+      const json = res.ok ? await res.json() : { success: false };
+      if (json.success) {
+        setData(json.data || []);
+      }
+    } catch (e) {
+      console.error("Gagal mengambil data pengeluaran stok:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeJenis, search, pageSize]);
+
+  // Filtered data
   const filtered = useMemo(() => {
     return data.filter((item) => {
-      const matchKat =
-        activeKategori === "Semua" || item.kategori === activeKategori;
+      const matchJenis =
+        activeJenis === "Semua" || item.jenis === activeJenis;
       const q = search.toLowerCase();
+      const kodeList = item.items.map((i) => i.kodeProduk.toLowerCase()).join(" ");
       const matchSearch =
         !q ||
-        item.keterangan.toLowerCase().includes(q) ||
-        item.kategori.toLowerCase().includes(q) ||
-        item.id.toLowerCase().includes(q);
-      return matchKat && matchSearch;
+        (item.note ?? "").toLowerCase().includes(q) ||
+        item.jenis.toLowerCase().includes(q) ||
+        kodeList.includes(q) ||
+        item._id.toLowerCase().includes(q);
+      return matchJenis && matchSearch;
     });
-  }, [data, activeKategori, search]);
+  }, [data, activeJenis, search]);
+
+  // Pagination
+  const totalItems = filtered.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIdx = (currentPage - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, totalItems);
+  const paginatedData = filtered.slice(startIdx, endIdx);
 
   // Stats
+  const totalSemua = useMemo(
+    () => data.reduce((s, i) => s + i.totalKerugian, 0),
+    [data]
+  );
+
   const totalBulanIni = useMemo(() => {
     const now = new Date();
     return data
       .filter((i) => {
-        const d = new Date(i.tanggal);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        const d = new Date(i.createdAt);
+        return (
+          d.getMonth() === now.getMonth() &&
+          d.getFullYear() === now.getFullYear()
+        );
       })
-      .reduce((s, i) => s + i.jumlah, 0);
+      .reduce((s, i) => s + i.totalKerugian, 0);
   }, [data]);
 
   const totalHariIni = useMemo(() => {
     const today = new Date().toDateString();
     return data
-      .filter((i) => new Date(i.tanggal).toDateString() === today)
-      .reduce((s, i) => s + i.jumlah, 0);
+      .filter((i) => new Date(i.createdAt).toDateString() === today)
+      .reduce((s, i) => s + i.totalKerugian, 0);
   }, [data]);
 
-  const totalSemua = useMemo(() => data.reduce((s, i) => s + i.jumlah, 0), [data]);
-
-  // Form handlers
-  const handleJumlahChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/\D/g, "");
-    setFormJumlahRaw(raw);
-    setFormJumlah(raw ? formatRupiah(Number(raw)) : "");
-  };
-
-  const resetForm = () => {
-    setFormKeterangan("");
-    setFormKategori("");
-    setFormJumlah("");
-    setFormJumlahRaw("");
-    setFormTanggal(new Date().toISOString().split("T")[0]);
-    setFormError("");
-  };
-
-  const handleSave = async () => {
-    if (!formKeterangan.trim()) { setFormError("Keterangan wajib diisi."); return; }
-    if (!formKategori) { setFormError("Pilih kategori pengeluaran."); return; }
-    if (!formJumlahRaw || Number(formJumlahRaw) <= 0) { setFormError("Masukkan jumlah yang valid."); return; }
-
-    setIsSaving(true);
-    await new Promise((r) => setTimeout(r, 600)); // Simulate API
-    const newItem: Pengeluaran = {
-      id: `PGL-${String(data.length + 1).padStart(3, "0")}`,
-      tanggal: new Date(formTanggal).toISOString(),
-      keterangan: formKeterangan.trim(),
-      kategori: formKategori,
-      jumlah: Number(formJumlahRaw),
-    };
-    setData((prev) => [newItem, ...prev]);
-    setIsSaving(false);
-    setIsAddOpen(false);
-    resetForm();
-  };
-
-  const openDelete = (item: Pengeluaran) => {
-    setSelectedItem(item);
-    setIsDeleteOpen(true);
-  };
-
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedItem) return;
-    setData((prev) => prev.filter((i) => i.id !== selectedItem.id));
-    setIsDeleteOpen(false);
-    setSelectedItem(null);
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/nontransaction/${selectedItem._id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = res.ok ? await res.json() : { success: false };
+      if (json.success) {
+        await fetchData();
+        setIsDeleteOpen(false);
+        setSelectedItem(null);
+      }
+    } catch (e) {
+      console.error("Gagal menghapus:", e);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#f7f8f9] p-4 sm:p-6 lg:p-8">
+    <div className="flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-zinc-950">
-              Pengeluaran
+              Pengeluaran Stok
             </h1>
             <p className="text-sm text-zinc-500 mt-1">
-              Catat dan kelola pengeluaran operasional toko.
+              Riwayat pengurangan stok non-transaksi (rusak, hilang, expired, dll).
             </p>
           </div>
-          <Button
-            onClick={() => { resetForm(); setIsAddOpen(true); }}
-            className="h-10 px-5 bg-[#09090b] hover:bg-[#27272a] text-white font-medium rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
-          >
-            <IconPlus className="w-4 h-4" stroke={2} />
-            Tambah Pengeluaran
-          </Button>
         </div>
 
-        {/* ── Summary Cards ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white border border-zinc-200/80 rounded-xl p-5 shadow-sm flex items-center gap-4">
-            <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-              <IconWallet className="w-5 h-5 text-red-500" stroke={1.5} />
-            </div>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm flex flex-col justify-between min-h-[120px]">
             <div>
-              <p className="text-xs font-medium text-zinc-500 mb-0.5">Total Semua Pengeluaran</p>
-              <p className="text-xl font-bold text-red-600">{formatRupiah(totalSemua)}</p>
+              <h3 className="text-sm font-medium text-zinc-500">Total Kerugian Stok</h3>
+              <p className="text-2xl sm:text-3xl font-bold text-red-600 mt-2 mb-1">
+                {formatRupiah(totalSemua)}
+              </p>
             </div>
+            <div className="text-xs text-zinc-400 font-medium">Akumulasi seluruh kerugian stok</div>
           </div>
-
-          <div className="bg-white border border-zinc-200/80 rounded-xl p-5 shadow-sm flex items-center gap-4">
-            <div className="w-11 h-11 rounded-full bg-zinc-100 flex items-center justify-center shrink-0">
-              <IconCalendarStats className="w-5 h-5 text-zinc-600" stroke={1.5} />
-            </div>
+          <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm flex flex-col justify-between min-h-[120px]">
             <div>
-              <p className="text-xs font-medium text-zinc-500 mb-0.5">Pengeluaran Bulan Ini</p>
-              <p className="text-xl font-bold text-zinc-900">{formatRupiah(totalBulanIni)}</p>
+              <h3 className="text-sm font-medium text-zinc-500">Kerugian Bulan Ini</h3>
+              <p className="text-2xl sm:text-3xl font-bold text-zinc-900 mt-2 mb-1">
+                {formatRupiah(totalBulanIni)}
+              </p>
             </div>
+            <div className="text-xs text-zinc-400 font-medium">Kerugian bulan berjalan</div>
           </div>
-
-          <div className="bg-white border border-zinc-200/80 rounded-xl p-5 shadow-sm flex items-center gap-4">
-            <div className="w-11 h-11 rounded-full bg-zinc-100 flex items-center justify-center shrink-0">
-              <IconReceipt className="w-5 h-5 text-zinc-600" stroke={1.5} />
-            </div>
+          <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm flex flex-col justify-between min-h-[120px]">
             <div>
-              <p className="text-xs font-medium text-zinc-500 mb-0.5">Pengeluaran Hari Ini</p>
-              <p className="text-xl font-bold text-zinc-900">{formatRupiah(totalHariIni)}</p>
+              <h3 className="text-sm font-medium text-zinc-500">Kerugian Hari Ini</h3>
+              <p className="text-2xl sm:text-3xl font-bold text-zinc-900 mt-2 mb-1">
+                {formatRupiah(totalHariIni)}
+              </p>
             </div>
+            <div className="text-xs text-zinc-400 font-medium">Kerugian hari berjalan</div>
           </div>
         </div>
 
-        {/* ── Table Card ── */}
-        <div className="bg-white border border-zinc-100 rounded-xl shadow-sm overflow-hidden">
+        {/* Table Card */}
+        <div className="bg-white border border-zinc-100 rounded-xl shadow-sm overflow-hidden flex flex-col">
 
-          {/* ── Filter + Search Bar ── */}
+          {/* Filter + Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b border-zinc-100">
-            {/* Category Tabs */}
-            <div className="flex items-center gap-0.5 bg-zinc-100/70 rounded-lg p-1 overflow-x-auto shrink-0">
-              {KATEGORI_LIST.map((kat) => (
+            <div className="flex items-center gap-0.5 bg-zinc-100 rounded-lg p-1 overflow-x-auto shrink-0">
+              {JENIS_LIST.map((j) => (
                 <button
-                  key={kat}
-                  onClick={() => setActiveKategori(kat)}
+                  key={j}
+                  onClick={() => setActiveJenis(j)}
                   className={`
                     px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap transition-all duration-150 cursor-pointer
-                    ${activeKategori === kat
-                      ? "bg-white text-zinc-900 shadow-sm border border-zinc-200/80"
+                    ${activeJenis === j
+                      ? "bg-white text-zinc-900 shadow-sm border border-zinc-200/40"
                       : "text-zinc-500 hover:text-zinc-700 hover:bg-white/60"
                     }
                   `}
                 >
-                  {kat}
+                  {j === "Semua" ? "Semua" : JENIS_LABEL[j]}
                 </button>
               ))}
             </div>
 
-            {/* Search */}
             <div className="relative w-full sm:w-64 shrink-0">
               <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" stroke={1.5} />
               <input
                 type="text"
-                placeholder="Cari keterangan..."
+                placeholder="Cari kode produk / catatan..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-zinc-200 bg-transparent placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 focus:border-zinc-300 transition"
+                className="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-transparent bg-zinc-50 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-300 transition"
               />
             </div>
           </div>
 
-          {/* ── Table ── */}
-          <div className="overflow-x-auto">
+          {/* Table */}
+          <div className="overflow-x-auto flex-1">
             <Table>
-              <TableHeader>
-                <TableRow className="bg-zinc-50/50 hover:bg-zinc-50/50">
-                  <TableHead className="font-semibold text-zinc-900 h-11">Tanggal</TableHead>
-                  <TableHead className="font-semibold text-zinc-900 h-11">ID</TableHead>
-                  <TableHead className="font-semibold text-zinc-900 h-11">Keterangan</TableHead>
-                  <TableHead className="font-semibold text-zinc-900 h-11">Kategori</TableHead>
-                  <TableHead className="font-semibold text-zinc-900 h-11 text-right">Jumlah</TableHead>
-                  <TableHead className="font-semibold text-zinc-900 h-11 text-center w-16">Aksi</TableHead>
+              <TableHeader className="bg-zinc-50/50">
+                <TableRow>
+                  <TableHead className="w-[60px] text-center font-semibold">No</TableHead>
+                  <TableHead className="font-semibold">Tanggal</TableHead>
+                  <TableHead className="font-semibold">Jenis</TableHead>
+                  <TableHead className="font-semibold">Catatan</TableHead>
+                  <TableHead className="font-semibold text-center">Jml Produk</TableHead>
+                  <TableHead className="font-semibold text-right">Kerugian</TableHead>
+                  <TableHead className="text-right font-semibold">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
+                {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-40 text-center">
+                    <TableCell colSpan={7} className="h-40 text-center">
+                      <div className="flex items-center justify-center gap-2 text-zinc-500">
+                        <div className="w-5 h-5 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
+                        Memuat data...
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : paginatedData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-40 text-center">
                       <div className="flex flex-col items-center gap-2 text-zinc-400">
-                        <IconPackage className="w-10 h-10" stroke={1} />
+                        <IconBoxOff className="w-10 h-10" stroke={1} />
                         <span className="text-sm">
-                          {search || activeKategori !== "Semua"
-                            ? "Tidak ada pengeluaran yang sesuai filter."
-                            : "Belum ada data pengeluaran."}
+                          {search || activeJenis !== "Semua"
+                            ? "Tidak ada data yang sesuai filter."
+                            : "Belum ada catatan pengeluaran stok."}
                         </span>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((item) => (
-                    <TableRow key={item.id} className="hover:bg-zinc-50/50 transition-colors">
-                      <TableCell className="text-[13px] text-zinc-500 whitespace-nowrap">
-                        {formatDate(item.tanggal)}
-                      </TableCell>
-                      <TableCell className="text-[13px] text-zinc-400 font-mono">
-                        {item.id}
-                      </TableCell>
-                      <TableCell className="text-[13px] font-medium text-zinc-900 max-w-xs">
-                        {item.keterangan}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                            KATEGORI_COLORS[item.kategori] ?? "bg-zinc-100 text-zinc-700 border-zinc-200"
-                          }`}
-                        >
-                          {item.kategori}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right text-[13px] font-semibold text-red-600 whitespace-nowrap">
-                        {formatRupiah(item.jumlah)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <button
-                          onClick={() => openDelete(item)}
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                          title="Hapus"
-                        >
-                          <IconTrash className="w-4 h-4" stroke={1.5} />
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  paginatedData.map((item, index) => {
+                    const displayedIndex = startIdx + index + 1;
+                    return (
+                      <TableRow key={item._id} className="hover:bg-zinc-50/40 transition-colors">
+                        <TableCell className="text-center text-zinc-500 font-medium">{displayedIndex}</TableCell>
+                        <TableCell className="text-[13px] text-zinc-600 whitespace-nowrap font-medium">
+                          {formatDate(item.createdAt)}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                              JENIS_COLORS[item.jenis] ?? "bg-zinc-100 text-zinc-700 border-zinc-200"
+                            }`}
+                          >
+                            {JENIS_LABEL[item.jenis] ?? item.jenis}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-[13px] font-medium text-zinc-700 max-w-xs truncate">
+                          {item.note
+                            ? item.note
+                            : <span className="text-zinc-400 italic">Tidak ada catatan</span>}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="inline-flex items-center gap-1 text-[13px] font-medium text-zinc-600">
+                            <IconPackage className="w-3.5 h-3.5 text-zinc-400" stroke={1.5} />
+                            {item.items.length} item
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right text-[13px] font-semibold text-red-600 whitespace-nowrap">
+                          {formatRupiah(item.totalKerugian)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <button
+                            onClick={() => { setSelectedItem(item); setIsDeleteOpen(true); }}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Hapus & rollback stok"
+                          >
+                            <IconTrash className="w-4 h-4" stroke={1.5} />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
           </div>
 
-          {/* Table Footer */}
-          {filtered.length > 0 && (
-            <div className="px-6 py-3 border-t border-zinc-100 flex justify-between items-center">
-              <span className="text-xs text-zinc-400">
-                Menampilkan {filtered.length} dari {data.length} pengeluaran
-              </span>
-              <span className="text-sm font-semibold text-red-600">
-                Total: {formatRupiah(filtered.reduce((s, i) => s + i.jumlah, 0))}
-              </span>
+          {/* Pagination */}
+          {totalItems > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-zinc-100 bg-zinc-50/50">
+              <div className="flex items-center gap-2 text-sm text-zinc-500">
+                <span>Tampilkan</span>
+                <div className="relative flex items-center">
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="bg-[#f4f4f5] text-zinc-700 text-sm font-medium rounded-xl h-9 px-3 pr-8 outline-none border-transparent cursor-pointer appearance-none"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <IconSelector className="w-3.5 h-3.5 text-zinc-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+                <span>data per halaman</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="h-8 px-2 flex items-center gap-1 bg-white border-zinc-200 hover:bg-zinc-50 text-xs font-medium text-zinc-600"
+                >
+                  <IconChevronLeft className="h-4 w-4" stroke={2} />
+                </Button>
+                <div className="text-xs font-semibold text-zinc-700 px-3 py-1 bg-white border border-zinc-200 rounded">
+                  {currentPage} dari {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="h-8 px-2 flex items-center gap-1 bg-white border-zinc-200 hover:bg-zinc-50 text-xs font-medium text-zinc-600"
+                >
+                  <IconChevronRight className="h-4 w-4" stroke={2} />
+                </Button>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Add Pengeluaran Modal ── */}
-      <Dialog open={isAddOpen} onOpenChange={(o) => { if (!o) resetForm(); setIsAddOpen(o); }}>
-        <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden bg-white rounded-xl border border-zinc-200 shadow-xl">
-          <DialogHeader className="p-6 pb-4 border-b border-zinc-100">
-            <DialogTitle className="text-lg font-bold text-zinc-900">
-              Tambah Pengeluaran
-            </DialogTitle>
-          </DialogHeader>
-          <div className="p-6 pt-5 space-y-4">
-            {/* Tanggal */}
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-zinc-800">Tanggal</label>
-              <input
-                type="date"
-                value={formTanggal}
-                onChange={(e) => setFormTanggal(e.target.value)}
-                className="w-full h-10 px-3 text-sm rounded-lg border border-zinc-200 bg-[#f4f4f5] focus:outline-none focus:ring-1 focus:ring-zinc-300 transition font-medium text-zinc-800"
-              />
-            </div>
-
-            {/* Keterangan */}
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-zinc-800">Keterangan</label>
-              <Input
-                type="text"
-                value={formKeterangan}
-                onChange={(e) => setFormKeterangan(e.target.value)}
-                placeholder="Contoh: Bayar tagihan listrik..."
-                className="h-10 bg-[#f4f4f5] border-transparent focus-visible:ring-1 focus-visible:ring-zinc-300 font-medium"
-              />
-            </div>
-
-            {/* Kategori */}
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-zinc-800">Kategori</label>
-              <Select value={formKategori} onValueChange={setFormKategori}>
-                <SelectTrigger className="h-10 bg-[#f4f4f5] border-transparent focus:ring-1 focus:ring-zinc-300 font-medium text-sm">
-                  <SelectValue placeholder="Pilih kategori..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {KATEGORI_LIST.filter((k) => k !== "Semua").map((k) => (
-                    <SelectItem key={k} value={k}>{k}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Jumlah */}
-            <div className="space-y-1.5">
-              <label className="text-[13px] font-semibold text-zinc-800">Jumlah (Rp)</label>
-              <Input
-                type="text"
-                value={formJumlah}
-                onChange={handleJumlahChange}
-                placeholder="Rp 0"
-                className="h-10 bg-[#f4f4f5] border-transparent focus-visible:ring-1 focus-visible:ring-zinc-300 font-medium"
-              />
-            </div>
-
-            {/* Error */}
-            {formError && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <IconAlertCircle className="w-4 h-4 text-red-500 shrink-0" stroke={2} />
-                <p className="text-[13px] text-red-600 font-medium">{formError}</p>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex gap-3 pt-1">
-              <Button
-                variant="outline"
-                onClick={() => { setIsAddOpen(false); resetForm(); }}
-                className="flex-1 h-11 border-zinc-200 text-zinc-700 font-medium rounded-lg"
-              >
-                Batal
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex-1 h-11 bg-[#09090b] hover:bg-[#27272a] text-white font-medium rounded-lg cursor-pointer transition-colors shadow-sm"
-              >
-                {isSaving ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Menyimpan...
-                  </div>
-                ) : "Simpan"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Delete Confirmation Modal ── */}
+      {/* Delete Confirmation Modal */}
       <Dialog open={isDeleteOpen} onOpenChange={(o) => { if (!o) setSelectedItem(null); setIsDeleteOpen(o); }}>
-        <DialogContent className="sm:max-w-[380px] p-0 overflow-hidden bg-white rounded-xl border border-zinc-200 shadow-xl">
+        <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden bg-white rounded-xl border border-zinc-200 shadow-xl">
           <DialogHeader className="p-6 pb-4 border-b border-zinc-100">
-            <DialogTitle className="text-lg font-bold text-zinc-900">Hapus Pengeluaran</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-zinc-900">Hapus Catatan Stok</DialogTitle>
           </DialogHeader>
           <div className="p-6 pt-4 space-y-4">
             {selectedItem && (
               <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-100 space-y-2">
                 <div className="flex justify-between text-[13px]">
-                  <span className="text-zinc-500 font-medium">Keterangan</span>
-                  <span className="font-semibold text-zinc-900 text-right max-w-[180px]">{selectedItem.keterangan}</span>
+                  <span className="text-zinc-500 font-medium">Jenis</span>
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
+                      JENIS_COLORS[selectedItem.jenis] ?? ""
+                    }`}
+                  >
+                    {JENIS_LABEL[selectedItem.jenis]}
+                  </span>
                 </div>
                 <div className="h-[1px] bg-zinc-200" />
                 <div className="flex justify-between text-[13px]">
-                  <span className="text-zinc-500 font-medium">Jumlah</span>
-                  <span className="font-bold text-red-600">{formatRupiah(selectedItem.jumlah)}</span>
+                  <span className="text-zinc-500 font-medium">Jumlah Produk</span>
+                  <span className="font-semibold text-zinc-900">{selectedItem.items.length} item</span>
+                </div>
+                <div className="h-[1px] bg-zinc-200" />
+                <div className="flex justify-between text-[13px]">
+                  <span className="text-zinc-500 font-medium">Total Kerugian</span>
+                  <span className="font-bold text-red-600">{formatRupiah(selectedItem.totalKerugian)}</span>
                 </div>
               </div>
             )}
-            <p className="text-[13px] text-zinc-500">
-              Data pengeluaran ini akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.
-            </p>
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <IconAlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" stroke={2} />
+              <p className="text-[13px] text-amber-700 font-medium">
+                Menghapus catatan ini akan <strong>mengembalikan stok</strong> ke inventori secara otomatis.
+              </p>
+            </div>
             <div className="flex gap-3 pt-1">
               <Button
                 variant="outline"
@@ -506,9 +473,15 @@ export default function PengeluaranPage() {
               </Button>
               <Button
                 onClick={handleDelete}
+                disabled={isDeleting}
                 className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg cursor-pointer transition-colors"
               >
-                Hapus
+                {isDeleting ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Menghapus...</span>
+                  </div>
+                ) : "Hapus & Rollback"}
               </Button>
             </div>
           </div>
