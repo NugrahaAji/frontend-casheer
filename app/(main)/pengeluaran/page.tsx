@@ -15,6 +15,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -426,65 +428,64 @@ export default function PengeluaranPage() {
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
       <Dialog open={isDeleteOpen} onOpenChange={(o) => { if (!o) setSelectedItem(null); setIsDeleteOpen(o); }}>
-        <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden bg-white rounded-xl border border-zinc-200 shadow-xl">
-          <DialogHeader className="p-6 pb-4 border-b border-zinc-100">
-            <DialogTitle className="text-lg font-bold text-zinc-900">Hapus Catatan Stok</DialogTitle>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Hapus Catatan Stok</DialogTitle>
+            <DialogDescription>
+              Menghapus catatan ini akan mengembalikan stok ke inventori secara otomatis.
+            </DialogDescription>
           </DialogHeader>
-          <div className="p-6 pt-4 space-y-4">
-            {selectedItem && (
-              <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-100 space-y-2">
-                <div className="flex justify-between text-[13px]">
-                  <span className="text-zinc-500 font-medium">Jenis</span>
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
-                      JENIS_COLORS[selectedItem.jenis] ?? ""
-                    }`}
-                  >
-                    {JENIS_LABEL[selectedItem.jenis]}
-                  </span>
-                </div>
-                <div className="h-[1px] bg-zinc-200" />
-                <div className="flex justify-between text-[13px]">
-                  <span className="text-zinc-500 font-medium">Jumlah Produk</span>
-                  <span className="font-semibold text-zinc-900">{selectedItem.items.length} item</span>
-                </div>
-                <div className="h-[1px] bg-zinc-200" />
-                <div className="flex justify-between text-[13px]">
-                  <span className="text-zinc-500 font-medium">Total Kerugian</span>
-                  <span className="font-bold text-red-600">{formatRupiah(selectedItem.totalKerugian)}</span>
-                </div>
+          {selectedItem && (
+            <div className="rounded-lg border bg-muted/20 p-3 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground font-medium">Jenis</span>
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                    JENIS_COLORS[selectedItem.jenis] ?? ""
+                  }`}
+                >
+                  {JENIS_LABEL[selectedItem.jenis]}
+                </span>
               </div>
-            )}
-            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <IconAlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" stroke={2} />
-              <p className="text-[13px] text-amber-700 font-medium">
-                Menghapus catatan ini akan <strong>mengembalikan stok</strong> ke inventori secara otomatis.
-              </p>
+              <div className="h-[1px] bg-border" />
+              <div className="flex justify-between">
+                <span className="text-muted-foreground font-medium">Jumlah Produk</span>
+                <span className="font-semibold">{selectedItem.items.length} item</span>
+              </div>
+              <div className="h-[1px] bg-border" />
+              <div className="flex justify-between">
+                <span className="text-muted-foreground font-medium">Total Kerugian</span>
+                <span className="font-bold text-destructive">{formatRupiah(selectedItem.totalKerugian)}</span>
+              </div>
             </div>
-            <div className="flex gap-3 pt-1">
-              <Button
-                variant="outline"
-                onClick={() => { setIsDeleteOpen(false); setSelectedItem(null); }}
-                className="flex-1 h-11 border-zinc-200 text-zinc-700 font-medium rounded-lg"
-              >
-                Batal
-              </Button>
-              <Button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg cursor-pointer transition-colors"
-              >
-                {isDeleting ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Menghapus...</span>
-                  </div>
-                ) : "Hapus & Rollback"}
-              </Button>
-            </div>
+          )}
+          <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg dark:bg-yellow-950/20 dark:border-yellow-900/30">
+            <IconAlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-500 shrink-0 mt-0.5" stroke={2} />
+            <p className="text-[13px] text-yellow-700 dark:text-yellow-400 font-medium">
+              Tindakan ini tidak dapat dibatalkan setelah stok dikembalikan.
+            </p>
           </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setIsDeleteOpen(false); setSelectedItem(null); }}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Menghapus...</span>
+                </div>
+              ) : "Hapus & Rollback"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

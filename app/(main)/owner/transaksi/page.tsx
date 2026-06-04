@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useTransactions } from "@/lib/hooks/useTransactions";
+import { OfflineBanner } from "@/components/ui/offline-banner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +32,7 @@ import {
 
 interface TransactionItem {
   kodeProduk: string;
-  namaProduk: string;
+  namaProduk?: string;
   qty: number;
   hargaFinal?: number;
   harga?: number;
@@ -63,36 +65,26 @@ const fmtTime = (d: string) => {
 };
 
 export default function OwnerTransaksiPage() {
+  // ── Data transaksi dari IndexedDB cache + auto-sync saat online ─────────────
+  const {
+    transactions,
+    status: trxStatus,
+    source: trxSource,
+    lastSyncedAt,
+    isLoading,
+    isSyncing,
+    error: trxError,
+    refresh: refreshTransactions,
+  } = useTransactions();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPayment, setFilterPayment] = useState<"semua" | "cash" | "utang">("semua");
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedTrx, setSelectedTrx] = useState<Transaction | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-
-  const fetchTransactions = async () => {
-    try {
-      const res = await fetch("/api/transaction", {
-        credentials: "include",
-      });
-      const data = res.ok ? await res.json() : { success: false };
-      if (data.success) {
-        setTransactions(data.data || []);
-      }
-    } catch (e) {
-      console.error("Gagal memuat transaksi:", e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
 
   // Reset page when filter or search changes
   useEffect(() => {
@@ -130,6 +122,16 @@ export default function OwnerTransaksiPage() {
             <p className="text-sm text-zinc-500 mt-1">Lihat seluruh riwayat transaksi penjualan toko.</p>
           </div>
         </div>
+
+        {/* Offline / Syncing Banner */}
+        <OfflineBanner
+          status={trxStatus}
+          source={trxSource}
+          lastSyncedAt={lastSyncedAt}
+          isSyncing={isSyncing}
+          error={trxError}
+          onRefresh={refreshTransactions}
+        />
 
         {/* Table Card */}
         <div className="bg-white border border-zinc-100 rounded-xl shadow-sm overflow-hidden flex flex-col">

@@ -64,7 +64,7 @@ app/
 ## UI/UX Guidelines
 
 ### Shadcn UI Preset
-- --preset bcivVvKk
+- j
 
 ## API Integration
 Use the following API endpoints (mocked initially):

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useShift } from "@/lib/hooks/useShift";
+import { useProducts } from "@/lib/hooks/useProducts";
+import { OfflineBanner } from "@/components/ui/offline-banner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +33,48 @@ import { Badge } from "@/components/ui/badge";
 
 export default function DashboardPage() {
   const { session, isHydrating } = useShift();
+
+  // ── Produk dari IndexedDB cache + auto-sync saat online ──────────────────
+  const {
+    categories: productCategories,
+    status: productStatus,
+    source: productSource,
+    lastSyncedAt,
+    isLoading: isLoadingProducts,
+    isSyncing,
+    error: productError,
+    refresh: refreshProducts,
+  } = useProducts();
+
+  // Format produk dari hook ke format yang digunakan halaman ini
+  const products = productCategories.flatMap((cat) =>
+    (cat.produk ?? []).map((p: any) => {
+      if (cat.kategori === "fisik") {
+        return {
+          ...p,
+          id: p.kodeProduk,
+          name: p.namaProduk,
+          category: "Produk Fisik",
+          type: p.kepemilikan,
+          retailPrice: p.pricing?.eceran?.hargaJual || 0,
+          wholesalePrice: p.pricing?.grosir?.[0]?.hargaJual || p.pricing?.eceran?.hargaJual || 0,
+          stockRaw: p.stock || [],
+          stock: p.stock?.reduce((acc: number, cur: any) => acc + (cur.stok || 0), 0) || 0,
+        };
+      }
+      return {
+        ...p,
+        id: p.kodeProduk,
+        name: p.namaProduk,
+        category: "Produk Digital",
+        type: p.kepemilikan || "sendiri",
+        retailPrice: p.biayaAdmin || 0,
+        wholesalePrice: p.biayaAdmin || 0,
+        stock: null,
+      };
+    })
+  );
+
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
   const [cart, setCart] = useState<any[]>([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -43,60 +87,6 @@ export default function DashboardPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [trxSuccess, setTrxSuccess] = useState<string | null>(null);
   const [trxError, setTrxError] = useState<string | null>(null);
-
-  const [products, setProducts] = useState<any[]>([]);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-
-  useEffect(() => {
-    const fetchAllProducts = async () => {
-      setIsLoadingProducts(true);
-      try {
-        const [resFisik, resDigital] = await Promise.all([
-          fetch("/api/product/fisik", { credentials: "include" }),
-          fetch("/api/product/digital", { credentials: "include" })
-        ]);
-
-        const dataFisik = resFisik.ok ? await resFisik.json() : { success: false };
-        const dataDigital = resDigital.ok ? await resDigital.json() : { success: false };
-
-        // Backend returns array: [{ kategori, produk: [...] }]
-        const fisik = dataFisik.success ? (dataFisik.data[0]?.produk || []) : [];
-        const digital = dataDigital.success ? (dataDigital.data[0]?.produk || []) : [];
-
-        // format to match expected properties
-        const formattedFisik = fisik.map((p: any) => ({
-          ...p,
-          id: p.kodeProduk,
-          name: p.namaProduk,
-          category: "Produk Fisik",
-          type: p.kepemilikan,
-          retailPrice: p.pricing?.eceran?.hargaJual || 0,
-          wholesalePrice: p.pricing?.grosir?.[0]?.hargaJual || p.pricing?.eceran?.hargaJual || 0,
-          stockRaw: p.stock || [],
-          stock: p.stock?.reduce((acc: number, cur: any) => acc + (cur.stok || 0), 0) || 0
-        }));
-
-        const formattedDigital = digital.map((p: any) => ({
-          ...p,
-          id: p.kodeProduk,
-          name: p.namaProduk,
-          category: "Produk Digital",
-          type: p.kepemilikan || "sendiri",
-          retailPrice: p.biayaAdmin || 0,
-          wholesalePrice: p.biayaAdmin || 0,
-          stock: null
-        }));
-
-        setProducts([...formattedFisik, ...formattedDigital]);
-      } catch (error) {
-        console.error("Failed to fetch products", error);
-      } finally {
-        setIsLoadingProducts(false);
-      }
-    };
-
-    fetchAllProducts();
-  }, []);
 
   const categories = ["Semua", "Produk Fisik", "Produk Digital"];
   const filteredProducts = products.filter(p => {
@@ -398,6 +388,17 @@ export default function DashboardPage() {
     <div className="flex-1 flex overflow-hidden bg-[#f8fafc]">
       {/* Product Area */}
       <div className="flex-1 flex flex-col p-4 lg:p-6 overflow-hidden relative">
+         {/* Offline / Syncing Banner */}
+         <div className="mb-3 shrink-0">
+           <OfflineBanner
+             status={productStatus}
+             source={productSource}
+             lastSyncedAt={lastSyncedAt}
+             isSyncing={isSyncing}
+             error={productError}
+             onRefresh={refreshProducts}
+           />
+         </div>
          {/* Main Container mirroring Owner Product Page */}
          <div className="bg-white border border-zinc-100 rounded-xl shadow-sm flex flex-col h-full overflow-hidden">
             {/* Search & Filter */}
