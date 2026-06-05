@@ -494,14 +494,7 @@ export default function KasbonPage() {
                     </Button>
                   </div>
 
-                  {/* Preview kembalian / sisa */}
-                  {payAmount > 0 && (
-                    <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 text-[13px] text-blue-700 font-medium">
-                      {payAmount >= sisa
-                        ? `✅ Utang akan lunas sepenuhnya.`
-                        : `Sisa setelah bayar: ${fmt(sisa - payAmount)}`}
-                    </div>
-                  )}
+
                 </div>
 
                 {/* Feedback */}

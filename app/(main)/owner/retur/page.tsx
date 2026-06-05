@@ -7,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  IconPlus, IconTrash, IconSearch, IconPackage, IconSelector,
+  IconPlus, IconTrash, IconSearch, IconPackage,
   IconChevronLeft, IconChevronRight, IconArrowBackUp, IconAlertCircle,
   IconMinus, IconX,
 } from "@tabler/icons-react";
+import { PageSizeSelect } from "@/components/ui/native-select";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Batch { batch: number; jumlah: number; hargaBeli: number; stok: number; }
@@ -147,11 +148,11 @@ export default function ReturBarangPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Pengeluaran Stok</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Non-Transaksi</h1>
             <p className="text-sm text-zinc-500 mt-1">Catat barang yang keluar bukan dari transaksi — rusak, hilang, expired, dll.</p>
           </div>
           <Button onClick={() => { resetForm(); setIsAddOpen(true); }} className="h-10 bg-zinc-900 hover:bg-zinc-800 text-white gap-2 font-medium px-4 rounded-xl shadow-sm self-start sm:self-auto cursor-pointer">
-            <IconPlus className="w-4 h-4" stroke={2.5} /> Tambah Pengeluaran
+            <IconPlus className="w-4 h-4" stroke={2.5} /> Tambah Non-Transaksi
           </Button>
         </div>
 
@@ -202,7 +203,7 @@ export default function ReturBarangPage() {
                 {isLoading ? (
                   <TableRow><TableCell colSpan={7} className="h-40 text-center"><div className="flex items-center justify-center gap-2 text-zinc-500"><div className="w-5 h-5 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin"/>Memuat data...</div></TableCell></TableRow>
                 ) : paginatedData.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="h-40 text-center"><div className="flex flex-col items-center gap-2 text-zinc-400"><IconPackage className="w-10 h-10" stroke={1}/><span className="text-sm">{search ? "Tidak ada data yang sesuai filter." : "Belum ada catatan pengeluaran stok."}</span></div></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="h-40 text-center"><div className="flex flex-col items-center gap-2 text-zinc-400"><IconPackage className="w-10 h-10" stroke={1}/><span className="text-sm">{search ? "Tidak ada data yang sesuai filter." : "Belum ada catatan non-transaksi."}</span></div></TableCell></TableRow>
                 ) : paginatedData.map((item, index) => (
                   <TableRow key={item._id} className="hover:bg-zinc-50/40 transition-colors">
                     <TableCell className="text-center text-zinc-500 font-medium">{startIdx+index+1}</TableCell>
@@ -225,16 +226,7 @@ export default function ReturBarangPage() {
           </div>
           {filtered.length > 0 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-zinc-100 bg-zinc-50/50">
-              <div className="flex items-center gap-2 text-sm text-zinc-500">
-                <span>Tampilkan</span>
-                <div className="relative flex items-center">
-                  <select value={pageSize} onChange={e=>setPageSize(Number(e.target.value))} className="bg-[#f4f4f5] text-zinc-700 text-sm font-medium rounded-xl h-9 px-3 pr-8 outline-none border-transparent cursor-pointer appearance-none">
-                    <option value={25}>25</option><option value={50}>50</option><option value={100}>100</option>
-                  </select>
-                  <IconSelector className="w-3.5 h-3.5 text-zinc-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"/>
-                </div>
-                <span>data per halaman</span>
-              </div>
+              <PageSizeSelect value={pageSize} onChange={setPageSize} />
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={()=>setCurrentPage(p=>Math.max(p-1,1))} disabled={currentPage===1} className="h-8 px-2 bg-white border-zinc-200 hover:bg-zinc-50 cursor-pointer"><IconChevronLeft className="w-4 h-4 text-zinc-600"/></Button>
                 <span className="text-xs font-semibold text-zinc-600 px-1">{currentPage} dari {totalPages||1}</span>
@@ -249,13 +241,13 @@ export default function ReturBarangPage() {
       <Dialog open={isAddOpen} onOpenChange={o=>{if(!o){setIsAddOpen(false);resetForm();}}}>
         <DialogContent className="sm:max-w-[520px] p-0 overflow-hidden bg-white rounded-xl border border-zinc-200 shadow-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="p-6 pb-4 border-b border-zinc-100 sticky top-0 bg-white z-10">
-            <DialogTitle className="text-lg font-bold text-zinc-900">Tambah Pengeluaran Stok</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-zinc-900">Tambah Non-Transaksi</DialogTitle>
           </DialogHeader>
           <div className="p-6 pt-5 space-y-4">
 
             {/* Jenis */}
             <div className="space-y-1.5">
-              <Label className="text-[13px] font-semibold text-zinc-800">Jenis Pengeluaran</Label>
+              <Label className="text-[13px] font-semibold text-zinc-800">Jenis Non-Transaksi</Label>
               <Select value={formJenis} onValueChange={setFormJenis}>
                 <SelectTrigger className="w-full h-10 bg-[#f4f4f5] border-transparent rounded-xl text-sm font-medium">
                   <SelectValue placeholder="Pilih jenis..."/>

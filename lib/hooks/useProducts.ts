@@ -1,11 +1,11 @@
 /**
  * useProducts.ts
- * Custom hook untuk mengambil data produk dengan strategi:
+ * Custom hook untuk mengambil data produk dengan strategi cache-first:
  *
- *   1. Fetch dari API (MongoDB) → simpan ke IndexedDB & return
- *   2. Jika network error (offline/timeout) → baca IndexedDB → status "offline"
- *   3. Jika server error (5xx/4xx) → baca IndexedDB → status "server_error"
- *   4. Auto-sync saat browser kembali online (window 'online' event)
+ *   Fase 0  — Baca IndexedDB segera → tampilkan data tanpa menunggu API
+ *   Fase 1  — Fetch dari API (background) → update cache & state jika berhasil
+ *   Offline — Jika data sudah di memory, hanya update status (tidak re-read DB)
+ *   Online  — Auto-sync saat browser kembali terhubung
  *
  * Endpoint: GET /api/product/allproduct
  */
@@ -24,7 +24,12 @@ import {
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export type DataSource = "api" | "indexeddb" | "none";
-export type ProductStatus = "loading" | "online" | "offline" | "server_error" | "error";
+export type ProductStatus =
+  | "loading"
+  | "online"
+  | "offline"
+  | "server_error"
+  | "error";
 
 export interface UseProductsResult {
   categories: ProductCategory[];
@@ -40,14 +45,10 @@ export interface UseProductsResult {
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
-/**
- * Periksa apakah error adalah masalah konektivitas jaringan (bukan server error).
- * Network error: timeout, DNS gagal, koneksi ditolak, browser offline.
- * Server error: HTTP 4xx / 5xx — server bisa dijangkau tapi mengembalikan error.
- */
 function isNetworkError(err: unknown): boolean {
   if (err instanceof DOMException && err.name === "AbortError") return true;
-  if (err instanceof TypeError && err.message.toLowerCase().includes("fetch")) return true;
+  if (err instanceof TypeError && err.message.toLowerCase().includes("fetch"))
+    return true;
   return false;
 }
 
@@ -65,20 +66,38 @@ export function useProducts(): UseProductsResult {
   const statusRef = useRef<ProductStatus>("loading");
   statusRef.current = status;
 
+  // Ref untuk tahu apakah sudah pernah ada data di state
+  const hasDataRef = useRef(false);
+
   // ── Core fetch logic ─────────────────────────────────────────────────────────
 
   const loadProducts = useCallback(async (isBackground = false) => {
-    if (isBackground) {
-      setIsSyncing(true);
-    } else {
-      setIsLoading(true);
-    }
     setError(null);
 
-    let apiError: unknown = null;
+    // ── Fase 0: Tampilkan cache IndexedDB segera (hanya pada load pertama) ──
+    // Ini membuat UI langsung muncul tanpa menunggu API — krusial saat offline.
+    if (!isBackground) {
+      setIsLoading(true);
+      try {
+        const cached = await getCachedProducts();
+        const meta = await getCacheMeta();
+        if (cached.length > 0) {
+          setCategories(cached);
+          setSource("indexeddb");
+          setLastSyncedAt(meta?.syncedAt ?? null);
+          setIsLoading(false); // tampilkan data segera
+          hasDataRef.current = true;
+        }
+      } catch {
+        // Abaikan, tetap lanjutkan ke API
+      }
+    } else {
+      setIsSyncing(true);
+    }
+
     let httpStatus: number | null = null;
 
-    // ── Langkah 1: Fetch dari API ────────────────────────────────────────────
+    // ── Fase 1: Fetch dari API ───────────────────────────────────────────────
     try {
       const res = await fetch("/api/product/allproduct", {
         credentials: "include",
@@ -100,57 +119,67 @@ export function useProducts(): UseProductsResult {
       setSource("api");
       setStatus("online");
       setLastSyncedAt(new Date().toISOString());
-      apiError = null;
-
+      hasDataRef.current = true;
     } catch (err) {
-      apiError = err;
-
       const networkError = isNetworkError(err);
       const label = networkError
         ? "[useProducts] Koneksi terputus"
         : `[useProducts] Server error (${httpStatus ?? "?"})`;
       console.warn(label, "— mencoba cache IndexedDB:", err);
 
-      // Background sync & data lama masih tampil → biarkan
-      if (isBackground && (statusRef.current === "offline" || statusRef.current === "server_error")) {
+      if (isBackground) {
+        // Background sync gagal tapi data lama masih tampil — update status saja
+        if (networkError) setStatus("offline");
         return;
       }
 
-      // ── Langkah 2: Fallback ke IndexedDB ─────────────────────────────────
-      try {
-        const cached = await getCachedProducts();
-        const meta = await getCacheMeta();
+      // Fallback: gunakan cache jika Fase 0 belum berhasil memuat data
+      if (!hasDataRef.current) {
+        try {
+          const cached = await getCachedProducts();
+          const meta = await getCacheMeta();
 
-        if (cached.length > 0) {
-          setCategories(cached);
-          setSource("indexeddb");
-          // Bedakan pesan berdasarkan tipe error
-          if (networkError) {
-            setStatus("offline");
-            setError(null);
+          if (cached.length > 0) {
+            setCategories(cached);
+            setSource("indexeddb");
+            if (networkError) {
+              setStatus("offline");
+              setError(null);
+            } else {
+              setStatus("server_error");
+              setError(
+                `Server mengembalikan error ${httpStatus ?? ""}. Menampilkan data cache terakhir.`,
+              );
+            }
+            setLastSyncedAt(meta?.syncedAt ?? null);
+            hasDataRef.current = true;
           } else {
-            setStatus("server_error");
+            setCategories([]);
+            setSource("none");
+            setStatus("error");
             setError(
-              `Server mengembalikan error ${httpStatus ?? ""}. Menampilkan data cache terakhir.`
+              networkError
+                ? "Tidak dapat terhubung ke server dan belum ada cache offline tersedia."
+                : `Server error ${httpStatus ?? ""}. Tidak ada cache offline tersedia.`,
             );
           }
-          setLastSyncedAt(meta?.syncedAt ?? null);
-        } else {
+        } catch (dbErr) {
+          console.error("[useProducts] IndexedDB error:", dbErr);
           setCategories([]);
           setSource("none");
           setStatus("error");
+          setError("Terjadi kesalahan saat membaca data offline.");
+        }
+      } else {
+        // Data sudah tampil dari cache (Fase 0) — hanya update status
+        if (networkError) {
+          setStatus("offline");
+        } else {
+          setStatus("server_error");
           setError(
-            networkError
-              ? "Tidak dapat terhubung ke server dan belum ada cache offline tersedia."
-              : `Server error ${httpStatus ?? ""}. Tidak ada cache offline tersedia.`
+            `Server mengembalikan error ${httpStatus ?? ""}. Menampilkan data cache terakhir.`,
           );
         }
-      } catch (dbErr) {
-        console.error("[useProducts] IndexedDB error:", dbErr);
-        setCategories([]);
-        setSource("none");
-        setStatus("error");
-        setError("Terjadi kesalahan saat membaca data offline.");
       }
     } finally {
       setIsLoading(false);
@@ -164,33 +193,28 @@ export function useProducts(): UseProductsResult {
     loadProducts(false);
   }, [loadProducts]);
 
-  // ── Auto-sync saat online / switch cache saat offline ─────────────────────────
+  // ── Online / Offline event handlers ──────────────────────────────────────────
 
   useEffect(() => {
     const handleOnline = () => {
       const cur = statusRef.current;
       if (cur === "offline" || cur === "server_error" || cur === "error") {
-        console.info("[useProducts] Koneksi pulih — sinkronisasi ulang produk...");
+        console.info(
+          "[useProducts] Koneksi pulih — menyinkronkan ulang produk...",
+        );
         loadProducts(true);
       }
     };
 
     const handleOffline = () => {
-      if (statusRef.current === "online") {
-        console.warn("[useProducts] Koneksi terputus — beralih ke cache.");
-        getCachedProducts().then((cached) => {
-          getCacheMeta().then((meta) => {
-            if (cached.length > 0) {
-              setCategories(cached);
-              setSource("indexeddb");
-              setStatus("offline");
-              setLastSyncedAt(meta?.syncedAt ?? null);
-            } else {
-              setStatus("error");
-              setSource("none");
-            }
-          });
-        });
+      const cur = statusRef.current;
+      if (cur === "online") {
+        console.warn(
+          "[useProducts] Koneksi terputus — beralih ke mode offline.",
+        );
+        // Data sudah ada di memory (dari API), tidak perlu re-read IndexedDB
+        setStatus("offline");
+        setSource("indexeddb");
       }
     };
 

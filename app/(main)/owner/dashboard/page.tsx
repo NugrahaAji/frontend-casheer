@@ -9,22 +9,23 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend
+  Legend,
 } from "recharts";
 import {
   IconCalendarEvent,
   IconPackage,
   IconCurrencyDollar,
   IconReceipt,
-  IconTrendingUp
+  IconTrendingUp,
 } from "@tabler/icons-react";
 import { format, subDays } from "date-fns";
 import { id } from "date-fns/locale";
+import { NativeSelect } from "@/components/ui/native-select";
 
 const generateChartData = (days: number, apiData: any[] = []) => {
   const data = [];
   const today = new Date();
-  
+
   // Buat map cepat untuk pencarian penjualan real-time
   const apiMap: Record<string, number> = {};
   if (Array.isArray(apiData)) {
@@ -56,6 +57,26 @@ const formatRupiah = (number: number) =>
     maximumFractionDigits: 0,
   }).format(number);
 
+// Menentukan formatter sumbu-Y secara dinamis berdasarkan nilai maksimum data
+function getYAxisFormatter(data: { penjualan: number }[]) {
+  const maxVal = Math.max(...data.map((d) => d.penjualan || 0), 0);
+
+  if (maxVal >= 1_000_000_000) {
+    // Miliar
+    return (v: number) => `${+(v / 1_000_000_000).toFixed(1)}M`;
+  }
+  if (maxVal >= 1_000_000) {
+    // Jutaan
+    return (v: number) => `${+(v / 1_000_000).toFixed(1)}jt`;
+  }
+  if (maxVal >= 1_000) {
+    // Ribuan
+    return (v: number) => `${+(v / 1_000).toFixed(0)}rb`;
+  }
+  // Di bawah seribu — tampilkan angka mentah
+  return (v: number) => `Rp ${v}`;
+}
+
 export default function OwnerDashboardPage() {
   const [dateRange, setDateRange] = useState("14");
   const [chartData, setChartData] = useState<any[]>([]);
@@ -85,7 +106,9 @@ export default function OwnerDashboardPage() {
   const fetchSummary = async (days: number) => {
     setIsLoadingSummary(true);
     try {
-      const res = await fetch(`/api/dashboard/owner/summary?days=${days}`, { credentials: "include" });
+      const res = await fetch(`/api/dashboard/owner/summary?days=${days}`, {
+        credentials: "include",
+      });
       const data = await res.json();
       if (res.ok && data.success && data.data) {
         setSummary({
@@ -104,7 +127,9 @@ export default function OwnerDashboardPage() {
   const fetchChartData = async (days: number) => {
     setIsLoadingChart(true);
     try {
-      const res = await fetch(`/api/dashboard/owner/sales-chart?days=${days}`, { credentials: "include" });
+      const res = await fetch(`/api/dashboard/owner/sales-chart?days=${days}`, {
+        credentials: "include",
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         const formatted = generateChartData(days, data.data || []);
@@ -120,7 +145,9 @@ export default function OwnerDashboardPage() {
   const fetchTopProducts = async () => {
     setIsLoadingTopProducts(true);
     try {
-      const res = await fetch("/api/dashboard/owner/top-products?limit=5", { credentials: "include" });
+      const res = await fetch("/api/dashboard/owner/top-products?limit=5", {
+        credentials: "include",
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         const mapped = (data.data || []).map((p: any) => ({
@@ -141,7 +168,10 @@ export default function OwnerDashboardPage() {
   const fetchRecentActivities = async () => {
     setIsLoadingActivities(true);
     try {
-      const res = await fetch("/api/dashboard/owner/recent-transactions?limit=5", { credentials: "include" });
+      const res = await fetch(
+        "/api/dashboard/owner/recent-transactions?limit=5",
+        { credentials: "include" },
+      );
       const data = await res.json();
       if (res.ok && data.success) {
         const mapped = (data.data || []).map((trx: any) => ({
@@ -169,7 +199,9 @@ export default function OwnerDashboardPage() {
   const fetchLowStocks = async () => {
     setIsLoadingStocks(true);
     try {
-      const res = await fetch("/api/dashboard/owner/low-stock?threshold=10", { credentials: "include" });
+      const res = await fetch("/api/dashboard/owner/low-stock?threshold=10", {
+        credentials: "include",
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         const mapped = (data.data || []).map((p: any) => ({
@@ -197,9 +229,9 @@ export default function OwnerDashboardPage() {
     fetchLowStocks();
   }, []);
 
-  const handleDateRangeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const days = parseInt(e.target.value);
-    setDateRange(e.target.value);
+  const handleDateRangeChange = (value: string) => {
+    const days = parseInt(value);
+    setDateRange(value);
     fetchSummary(days);
     fetchChartData(days);
   };
@@ -208,7 +240,9 @@ export default function OwnerDashboardPage() {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white border border-zinc-200 p-3 rounded-lg shadow-sm">
-          <p className="text-sm font-medium text-zinc-900 mb-1">{payload[0].payload.fullDate}</p>
+          <p className="text-sm font-medium text-zinc-900 mb-1">
+            {payload[0].payload.fullDate}
+          </p>
           <p className="text-sm text-[#14b8a6] font-semibold">
             Penjualan: {formatRupiah(payload[0].value)}
           </p>
@@ -221,25 +255,28 @@ export default function OwnerDashboardPage() {
   return (
     <div className="flex-1 overflow-y-auto bg-[#f8fafc] p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Dashboard Pemilik</h1>
-            <p className="text-sm text-zinc-500 mt-1">Analisis keuangan dan performa bisnis</p>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
+              Dashboard Pemilik
+            </h1>
+            <p className="text-sm text-zinc-500 mt-1">
+              Analisis keuangan dan performa bisnis
+            </p>
           </div>
-          <div className="flex items-center gap-2 bg-white border border-zinc-200 rounded-lg px-3 py-2 shadow-sm">
-            <IconCalendarEvent className="w-4 h-4 text-zinc-500" />
-            <select
+          <div className="flex items-center gap-2 bg-white border border-zinc-200 rounded-lg px-3 py-1.5 shadow-sm">
+            <IconCalendarEvent className="w-4 h-4 text-zinc-500 shrink-0" />
+            <NativeSelect
               value={dateRange}
               onChange={handleDateRangeChange}
-              className="bg-transparent text-sm font-medium text-zinc-700 outline-none cursor-pointer appearance-none pr-6"
-              style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2371717a%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right center', backgroundSize: '0.65rem auto' }}
-            >
-              <option value="7">7 Hari Terakhir</option>
-              <option value="14">14 Hari Terakhir</option>
-              <option value="30">30 Hari Terakhir</option>
-            </select>
+              options={[
+                { value: "7", label: "7 Hari Terakhir" },
+                { value: "14", label: "14 Hari Terakhir" },
+                { value: "30", label: "30 Hari Terakhir" },
+              ]}
+              className="h-8 bg-transparent border-none focus:ring-0 text-zinc-700 font-medium text-sm w-40"
+            />
           </div>
         </div>
 
@@ -247,14 +284,21 @@ export default function OwnerDashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center shrink-0 border border-teal-100">
-              <IconCurrencyDollar className="w-6 h-6 text-teal-600" stroke={1.5} />
+              <IconCurrencyDollar
+                className="w-6 h-6 text-teal-600"
+                stroke={1.5}
+              />
             </div>
             <div className="flex-1">
-              <h3 className="text-sm font-medium text-zinc-500 mb-1">Total Pendapatan</h3>
+              <h3 className="text-sm font-medium text-zinc-500 mb-1">
+                Total Pendapatan
+              </h3>
               {isLoadingSummary ? (
                 <div className="h-8 w-32 bg-zinc-100 rounded animate-pulse mt-1" />
               ) : (
-                <p className="text-2xl sm:text-3xl font-bold text-zinc-900">{formatRupiah(summary.totalRevenue)}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-zinc-900">
+                  {formatRupiah(summary.totalRevenue)}
+                </p>
               )}
             </div>
           </div>
@@ -263,24 +307,35 @@ export default function OwnerDashboardPage() {
               <IconReceipt className="w-6 h-6 text-rose-600" stroke={1.5} />
             </div>
             <div className="flex-1">
-              <h3 className="text-sm font-medium text-zinc-500 mb-1">Total Pengeluaran</h3>
+              <h3 className="text-sm font-medium text-zinc-500 mb-1">
+                Total Pengeluaran
+              </h3>
               {isLoadingSummary ? (
                 <div className="h-8 w-32 bg-zinc-100 rounded animate-pulse mt-1" />
               ) : (
-                <p className="text-2xl sm:text-3xl font-bold text-zinc-900">{formatRupiah(summary.totalExpense)}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-zinc-900">
+                  {formatRupiah(summary.totalExpense)}
+                </p>
               )}
             </div>
           </div>
           <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center shrink-0 border border-indigo-100">
-              <IconTrendingUp className="w-6 h-6 text-indigo-600" stroke={1.5} />
+              <IconTrendingUp
+                className="w-6 h-6 text-indigo-600"
+                stroke={1.5}
+              />
             </div>
             <div className="flex-1">
-              <h3 className="text-sm font-medium text-zinc-500 mb-1">Laba Bersih</h3>
+              <h3 className="text-sm font-medium text-zinc-500 mb-1">
+                Laba Bersih
+              </h3>
               {isLoadingSummary ? (
                 <div className="h-8 w-32 bg-zinc-100 rounded animate-pulse mt-1" />
               ) : (
-                <p className="text-2xl sm:text-3xl font-bold text-zinc-900">{formatRupiah(summary.netProfit)}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-zinc-900">
+                  {formatRupiah(summary.netProfit)}
+                </p>
               )}
             </div>
           </div>
@@ -289,8 +344,12 @@ export default function OwnerDashboardPage() {
         {/* Chart Section */}
         <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm">
           <div className="mb-6">
-            <h2 className="text-lg font-semibold text-zinc-900">Grafik Penjualan Harian</h2>
-            <p className="text-sm text-zinc-500">Total penjualan per hari dalam rentang waktu terpilih</p>
+            <h2 className="text-lg font-semibold text-zinc-900">
+              Grafik Penjualan Harian
+            </h2>
+            <p className="text-sm text-zinc-500">
+              Total penjualan per hari dalam rentang waktu terpilih
+            </p>
           </div>
           <div className="h-[300px] w-full flex items-center justify-center">
             {isLoadingChart ? (
@@ -300,13 +359,44 @@ export default function OwnerDashboardPage() {
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#71717a', fontSize: 12 }} tickFormatter={(value) => `Rp ${value / 1000000}jt`} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f4f4f5' }} />
-                  <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
-                  <Bar dataKey="penjualan" name="Penjualan" fill="#14b8a6" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#e4e4e7"
+                  />
+                  <XAxis
+                    dataKey="date"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#71717a", fontSize: 12 }}
+                    dy={10}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#71717a", fontSize: 12 }}
+                    tickFormatter={getYAxisFormatter(chartData)}
+                    tickCount={5}
+                  />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    cursor={{ fill: "#f4f4f5" }}
+                  />
+                  <Legend
+                    iconType="circle"
+                    wrapperStyle={{ paddingTop: "20px", fontSize: "12px" }}
+                  />
+                  <Bar
+                    dataKey="penjualan"
+                    name="Penjualan"
+                    fill="#14b8a6"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={40}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -317,8 +407,12 @@ export default function OwnerDashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Top Products */}
           <div className="lg:col-span-2 bg-white border border-zinc-100 rounded-xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-zinc-900 mb-1">Produk Terlaris</h2>
-            <p className="text-sm text-zinc-500 mb-6">Top 5 produk dengan penjualan tertinggi</p>
+            <h2 className="text-lg font-semibold text-zinc-900 mb-1">
+              Produk Terlaris
+            </h2>
+            <p className="text-sm text-zinc-500 mb-6">
+              Top 5 produk dengan penjualan tertinggi
+            </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="text-zinc-500 border-b border-zinc-100">
@@ -331,7 +425,10 @@ export default function OwnerDashboardPage() {
                 <tbody className="divide-y divide-zinc-50">
                   {isLoadingTopProducts ? (
                     <tr>
-                      <td colSpan={3} className="py-8 text-center text-zinc-500">
+                      <td
+                        colSpan={3}
+                        className="py-8 text-center text-zinc-500"
+                      >
                         <div className="flex items-center justify-center gap-2">
                           <div className="w-4 h-4 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
                           Memuat produk terlaris...
@@ -340,7 +437,10 @@ export default function OwnerDashboardPage() {
                     </tr>
                   ) : topProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="py-8 text-center text-zinc-400 text-sm">
+                      <td
+                        colSpan={3}
+                        className="py-8 text-center text-zinc-400 text-sm"
+                      >
                         Belum ada penjualan tercatat.
                       </td>
                     </tr>
@@ -348,11 +448,19 @@ export default function OwnerDashboardPage() {
                     topProducts.map((product, idx) => (
                       <tr key={product.id || idx}>
                         <td className="py-4 flex items-center gap-3">
-                          <span className="text-zinc-400 font-medium w-4">{idx + 1}</span>
-                          <span className="font-medium text-zinc-900">{product.name}</span>
+                          <span className="text-zinc-400 font-medium w-4">
+                            {idx + 1}
+                          </span>
+                          <span className="font-medium text-zinc-900">
+                            {product.name}
+                          </span>
                         </td>
-                        <td className="py-4 text-right text-zinc-600">{product.sold} unit</td>
-                        <td className="py-4 text-right font-medium text-zinc-900">{formatRupiah(product.revenue)}</td>
+                        <td className="py-4 text-right text-zinc-600">
+                          {product.sold} unit
+                        </td>
+                        <td className="py-4 text-right font-medium text-zinc-900">
+                          {formatRupiah(product.revenue)}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -361,10 +469,12 @@ export default function OwnerDashboardPage() {
             </div>
           </div>
 
-          {/* Recent Activities */}
+          {/* Recent Transactions */}
           <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-zinc-900 mb-1">Aktivitas Terbaru</h2>
-            <p className="text-sm text-zinc-500 mb-6">Timeline aktivitas terkini</p>
+            <h2 className="text-lg font-semibold text-zinc-900 mb-1">
+              Transaksi Terbaru
+            </h2>
+            <p className="text-sm text-zinc-500 mb-6">5 transaksi terakhir</p>
             <div className="space-y-6">
               {isLoadingActivities ? (
                 <div className="py-8 text-center text-zinc-500">
@@ -374,21 +484,30 @@ export default function OwnerDashboardPage() {
                   </div>
                 </div>
               ) : recentActivities.length === 0 ? (
-                <p className="text-center text-zinc-400 text-sm py-8">Belum ada aktivitas transaksi.</p>
+                <p className="text-center text-zinc-400 text-sm py-8">
+                  Belum ada aktivitas transaksi.
+                </p>
               ) : (
                 recentActivities.map((activity, idx) => (
                   <div key={activity.id || idx} className="flex gap-4">
                     <div className="flex-shrink-0 mt-1">
                       <div className="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center border border-teal-100">
-                        <IconPackage className="w-4 h-4 text-teal-500" stroke={1.5} />
+                        <IconPackage
+                          className="w-4 h-4 text-teal-500"
+                          stroke={1.5}
+                        />
                       </div>
                     </div>
                     <div>
-                      <h4 className="text-sm font-medium text-zinc-900">{activity.type}</h4>
-                      <p className="text-[13px] text-zinc-500 mt-0.5">
-                        {activity.trx} - {formatRupiah(activity.amount)}
+                      <h4 className="text-sm font-medium text-zinc-900">
+                        {activity.type}
+                      </h4>
+                      <p className="text-[13px] font-semibold text-zinc-700 mt-0.5">
+                        {formatRupiah(activity.amount)}
                       </p>
-                      <p className="text-[12px] text-zinc-400 mt-1">{activity.date}</p>
+                      <p className="text-[12px] text-zinc-400 mt-1">
+                        {activity.date}
+                      </p>
                     </div>
                   </div>
                 ))
@@ -399,8 +518,12 @@ export default function OwnerDashboardPage() {
 
         {/* Low Stock — fetched from backend */}
         <div className="bg-white border border-zinc-100 rounded-xl p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-zinc-900 mb-1">Stok Menipis</h2>
-          <p className="text-sm text-zinc-500 mb-6">Produk dengan stok di bawah minimum (≤ 10)</p>
+          <h2 className="text-lg font-semibold text-zinc-900 mb-1">
+            Stok Menipis
+          </h2>
+          <p className="text-sm text-zinc-500 mb-6">
+            Produk dengan stok di bawah minimum (≤ 10)
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-zinc-500 border-b border-zinc-100">
@@ -422,21 +545,30 @@ export default function OwnerDashboardPage() {
                   </tr>
                 ) : lowStocks.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-8 text-center text-zinc-500 text-sm">
+                    <td
+                      colSpan={3}
+                      className="py-8 text-center text-zinc-500 text-sm"
+                    >
                       ✅ Semua stok dalam kondisi aman.
                     </td>
                   </tr>
                 ) : (
                   lowStocks.map((item) => (
                     <tr key={item.id}>
-                      <td className="py-4 font-medium text-zinc-900">{item.name}</td>
-                      <td className="py-4 text-zinc-500 font-mono text-xs">{item.sku}</td>
+                      <td className="py-4 font-medium text-zinc-900">
+                        {item.name}
+                      </td>
+                      <td className="py-4 text-zinc-500 font-mono text-xs">
+                        {item.sku}
+                      </td>
                       <td className="py-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                          item.stock === 0
-                            ? "bg-red-100 text-red-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}>
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            item.stock === 0
+                              ? "bg-red-100 text-red-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
                           {item.stock === 0 ? "Habis" : `${item.stock} tersisa`}
                         </span>
                       </td>
@@ -447,7 +579,6 @@ export default function OwnerDashboardPage() {
             </table>
           </div>
         </div>
-
       </div>
     </div>
   );

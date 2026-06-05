@@ -11,7 +11,7 @@
  */
 
 const DB_NAME = "casheer_db";
-const DB_VERSION = 3; // harus sinkron dengan shiftDB.ts & transactionDB.ts
+const DB_VERSION = 4; // harus sinkron dengan shiftDB.ts & transactionDB.ts
 const STORE_NAME = "products_cache";
 const META_STORE = "products_meta";
 
@@ -92,6 +92,16 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(META_STORE)) {
         db.createObjectStore(META_STORE, { keyPath: "id" });
       }
+
+      if (!db.objectStoreNames.contains("transactions_cache")) {
+        db.createObjectStore("transactions_cache", { keyPath: "_id" });
+      }
+      if (!db.objectStoreNames.contains("transactions_meta")) {
+        db.createObjectStore("transactions_meta", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("pending_transactions")) {
+        db.createObjectStore("pending_transactions", { keyPath: "localId" });
+      }
     };
 
     request.onsuccess = (event) => {
@@ -110,7 +120,9 @@ function openDB(): Promise<IDBDatabase> {
  * Simpan seluruh data produk (array ProductCategory) ke IndexedDB.
  * Setiap kategori disimpan sebagai record terpisah dengan key = kategori.
  */
-export async function saveProducts(categories: ProductCategory[]): Promise<void> {
+export async function saveProducts(
+  categories: ProductCategory[],
+): Promise<void> {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
@@ -228,7 +240,9 @@ export async function clearProductCache(): Promise<void> {
 /**
  * Periksa apakah cache sudah kedaluwarsa (lebih dari maxAgeMs, default 1 jam).
  */
-export async function isCacheStale(maxAgeMs = 60 * 60 * 1000): Promise<boolean> {
+export async function isCacheStale(
+  maxAgeMs = 60 * 60 * 1000,
+): Promise<boolean> {
   const meta = await getCacheMeta();
   if (!meta) return true;
   const age = Date.now() - new Date(meta.syncedAt).getTime();

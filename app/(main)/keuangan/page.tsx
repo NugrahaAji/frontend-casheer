@@ -32,7 +32,16 @@ import {
   IconCloudOff,
   IconChevronDown,
   IconChevronUp,
+  IconChevronLeft,
+  IconChevronRight,
 } from "@tabler/icons-react";
+import {
+  getPendingTransactions,
+  saveTransactions,
+  getCachedTransactions,
+  clearTransactionCache,
+} from "@/lib/db/transactionDB";
+import { PageSizeSelect } from "@/components/ui/native-select";
 
 interface TrxItem {
   kodeProduk: string;
@@ -51,7 +60,7 @@ interface Transaction {
   items: TrxItem[];
   total: number;
   paid: number;
-  status: "lunas" | "utang";
+  status: "lunas" | "utang" | "pending";
 }
 
 export default function KeuanganHarianPage() {
@@ -70,6 +79,10 @@ export default function KeuanganHarianPage() {
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [balanceInput, setBalanceInput] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // ─── Nama Produk Mapping ───────────────────────────────────────────────────
   const [productMap, setProductMap] = useState<Record<string, string>>({});
@@ -147,22 +160,81 @@ export default function KeuanganHarianPage() {
   const fetchTodayTransactions = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/transaction", {
-        credentials: "include", // Kirim cookie JWT ke backend
-      });
-      const data = res.ok ? await res.json() : { success: false };
-      if (data.success) {
-        const today = new Date().toDateString();
-        const shiftStart = session.shiftStartTime ? new Date(session.shiftStartTime) : null;
-        const activeTrx = (data.data || []).filter((t: Transaction) => {
-          const trxTime = new Date(t.createdAt);
+      // 1. Ambil transaksi pending dari IndexedDB
+      const pending = await getPendingTransactions();
+
+      // 2. Ambil transaksi dari server dengan fallback ke IndexedDB (transactions_cache)
+      let serverTrx: Transaction[] = [];
+      const today = new Date().toDateString();
+      const shiftStart = session.shiftStartTime ? new Date(session.shiftStartTime) : null;
+
+      try {
+        const res = await fetch("/api/transaction", {
+          credentials: "include", // Kirim cookie JWT ke backend
+          signal: AbortSignal.timeout(8000),
+        });
+        const data = res.ok ? await res.json() : { success: false };
+        if (data.success) {
+          const allServerTrx: Transaction[] = data.data || [];
+          // Filter transaksi server yang terjadi setelah shift dimulai
+          const activeServerTrx = allServerTrx.filter((t: Transaction) => {
+            const trxTime = new Date(t.createdAt);
+            const isToday = trxTime.toDateString() === today;
+            if (!shiftStart) return false;
+            return isToday && trxTime >= shiftStart;
+          });
+          // Cache ke IndexedDB
+          await saveTransactions(activeServerTrx as any);
+          serverTrx = activeServerTrx;
+        } else {
+          throw new Error("Gagal mengambil data dari server");
+        }
+      } catch (fetchErr) {
+        console.warn("[KeuanganHarian] Gagal memuat transaksi dari server, menggunakan cache IndexedDB:", fetchErr);
+        const cached = await getCachedTransactions();
+        if (cached && cached.length > 0) {
+          // Filter cache lokal yang sesuai dengan shift saat ini
+          const filtered = (cached as any[]).filter((t: any) => {
+            const trxTime = new Date(t.createdAt);
+            const isToday = trxTime.toDateString() === today;
+            if (!shiftStart) return false;
+            return isToday && trxTime >= shiftStart;
+          });
+          serverTrx = filtered as Transaction[];
+        }
+      }
+
+      // Filter & Map pending transactions
+      const mappedPending: Transaction[] = pending
+        .filter((pt) => {
+          const trxTime = new Date(pt.createdAt);
           const isToday = trxTime.toDateString() === today;
           if (!shiftStart) return false;
-          // Hanya ambil transaksi yang terjadi setelah shift kasir ini dimulai
           return isToday && trxTime >= shiftStart;
-        });
-        setTransactions(activeTrx);
-      }
+        })
+        .map((pt) => ({
+          _id: pt.localId,
+          kodeTransaksi: pt.localId,
+          createdAt: pt.createdAt,
+          customer: pt.payload.customer || "umum",
+          paymentType: pt.payload.paymentType,
+          items: (pt.itemsDetailed || pt.payload.items || []).map((it: any) => ({
+            kodeProduk: it.kodeProduk,
+            qty: it.qty,
+            harga: it.harga || 0,
+            subtotal: it.subtotal || 0,
+            batch: it.batch,
+          })),
+          total: pt.total,
+          paid: pt.payload.paid || 0,
+          status: "pending",
+        }));
+
+      // Gabungkan dan urutkan berdasarkan waktu transaksi (terbaru ke terlama)
+      const combined = [...mappedPending, ...serverTrx].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setTransactions(combined);
     } catch (e) {
       console.error("Gagal memuat transaksi:", e);
     } finally {
@@ -196,7 +268,21 @@ export default function KeuanganHarianPage() {
     await endShift();
     setIsSummaryModalOpen(false);
     setTransactions([]);
+    // Bersihkan ringkasan transaksi dari IndexedDB saat shift selesai
+    await clearTransactionCache();
   };
+
+  // Reset page when transactions length or pageSize changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [transactions.length, pageSize]);
+
+  // Paginate transactions
+  const totalItems = transactions.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIdx = (currentPage - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, totalItems);
+  const paginatedTransactions = transactions.slice(startIdx, endIdx);
 
   // ─── Derived stats ───────────────────────────────────────────────────────────
   const totalPendapatan = transactions.reduce((s, t) => s + t.total, 0);
@@ -357,7 +443,7 @@ export default function KeuanganHarianPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  transactions.map((item) => {
+                  paginatedTransactions.map((item) => {
                     const isExpanded = expanded === item._id;
                     return (
                       <React.Fragment key={item._id}>
@@ -385,7 +471,9 @@ export default function KeuanganHarianPage() {
                               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
                                 item.status === "lunas"
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : item.status === "utang"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-orange-50 text-orange-700 border border-orange-200"
                               }`}
                             >
                               {item.status}
@@ -407,7 +495,7 @@ export default function KeuanganHarianPage() {
                             </Button>
                           </TableCell>
                         </TableRow>
-
+ 
                         {/* Expanded: item detail */}
                         {isExpanded && (
                           <TableRow key={`${item._id}-detail`} className="bg-zinc-50/40">
@@ -457,6 +545,37 @@ export default function KeuanganHarianPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Footer */}
+          {session.isShiftStarted && !isLoading && totalItems > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-zinc-100 bg-zinc-50/50">
+              <PageSizeSelect value={pageSize} onChange={setPageSize} />
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="h-8 px-2 flex items-center gap-1 bg-white border-zinc-200 hover:bg-zinc-50 text-xs font-medium text-zinc-600"
+                >
+                  <IconChevronLeft className="h-4 w-4" stroke={2} />
+                </Button>
+                <div className="text-xs font-semibold text-zinc-700 px-3 py-1 bg-white border border-zinc-200 rounded">
+                  {currentPage} dari {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="h-8 px-2 flex items-center gap-1 bg-white border-zinc-200 hover:bg-zinc-50 text-xs font-medium text-zinc-600"
+                >
+                  <IconChevronRight className="h-4 w-4" stroke={2} />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Modal: Mulai Shift ──────────────────────────────────────────────── */}

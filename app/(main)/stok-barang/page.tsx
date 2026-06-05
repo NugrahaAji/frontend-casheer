@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Combobox } from "@/components/ui/combobox";
+import { PageSizeSelect } from "@/components/ui/native-select";
 import {
-  IconPlus, IconAlertCircle, IconCheck, IconTrash, IconSearch, IconPackage, IconSelector, IconPencil, IconDots, IconStack2, IconChevronLeft, IconChevronRight
+  IconPlus, IconAlertCircle, IconCheck, IconTrash, IconSearch, IconPackage,
+  IconPencil, IconStack2, IconChevronLeft, IconChevronRight, IconAlertTriangle
 } from "@tabler/icons-react";
 
 interface GrosirPricing { jumlah: number; hargaJual: number; }
@@ -25,48 +28,6 @@ const formatRupiah = (n: number) =>
 
 const KATEGORI_PRESETS = ["Makanan", "Minuman", "Snack", "Rokok", "Sabun", "ATK", "Pulsa", "Token Listrik", "E-Wallet"];
 
-// Combobox component for kategori
-function KategoriCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(value);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => { setInputValue(value); }, [value]);
-  useEffect(() => {
-    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const filtered = KATEGORI_PRESETS.filter(k => k.toLowerCase().includes(inputValue.toLowerCase()));
-
-  return (
-    <div ref={ref} className="relative">
-      <div className="relative">
-        <Input
-          value={inputValue}
-          onChange={(e) => { setInputValue(e.target.value); onChange(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-          placeholder="Pilih atau ketik kategori"
-          className="h-10 bg-[#f4f4f5] border-transparent focus-visible:ring-1 focus-visible:ring-zinc-300 text-sm rounded-lg pr-8"
-        />
-        <button type="button" onClick={() => setOpen(!open)} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400">
-          <IconSelector className="w-4 h-4" />
-        </button>
-      </div>
-      {open && filtered.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-          {filtered.map(k => (
-            <button key={k} type="button" onClick={() => { onChange(k); setInputValue(k); setOpen(false); }}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-50 transition-colors">
-              {k}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function StokBarangPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -104,6 +65,24 @@ export default function StokBarangPage() {
   const [isBatchSubmitting, setIsBatchSubmitting] = useState(false);
   const [batchError, setBatchError] = useState("");
   const [batchSuccess, setBatchSuccess] = useState("");
+
+  // Edit state
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Product | null>(null);
+  const [editNama, setEditNama] = useState("");
+  const [editKategori, setEditKategori] = useState("");
+  const [editKepemilikan, setEditKepemilikan] = useState<"sendiri" | "titipan">("sendiri");
+  const [editHargaEceran, setEditHargaEceran] = useState("");
+  const [editBiayaAdmin, setEditBiayaAdmin] = useState("");
+  const [editGrosirList, setEditGrosirList] = useState<GrosirPricing[]>([]);
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editSuccess, setEditSuccess] = useState("");
+
+  // Delete state
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchProducts = async (kategori: string) => {
     setIsLoadingProducts(true);
@@ -170,14 +149,79 @@ export default function StokBarangPage() {
     finally { setIsBatchSubmitting(false); }
   };
 
-  const handleDelete = async (kodeProduk: string) => {
-    if (!confirm("Yakin ingin menghapus produk ini?")) return;
+  const openDeleteDialog = (product: Product) => {
+    setDeleteTarget(product);
+    setIsDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      const res = await fetch(`/api/product/${activeTab}/${kodeProduk}`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`/api/product/${activeTab}/${deleteTarget.kodeProduk}`, { method: "DELETE", credentials: "include" });
       const data = await res.json();
-      if (res.ok && data.success) fetchProducts(activeTab);
-      else alert(data.message || "Gagal menghapus.");
-    } catch { alert("Kesalahan jaringan."); }
+      if (res.ok && data.success) {
+        fetchProducts(activeTab);
+        setIsDeleteOpen(false);
+        setDeleteTarget(null);
+      }
+    } catch { /* silent */ }
+    finally { setIsDeleting(false); }
+  };
+
+  const openEditSheet = (product: Product) => {
+    setEditTarget(product);
+    setEditNama(product.namaProduk);
+    setEditKategori(product.kategoriProduk || "");
+    setEditKepemilikan((product.kepemilikan as "sendiri" | "titipan") || "sendiri");
+    setEditHargaEceran(product.pricing?.eceran?.hargaJual?.toString() || "");
+    setEditBiayaAdmin(product.biayaAdmin?.toString() || "");
+    setEditGrosirList(product.pricing?.grosir || []);
+    setEditError(""); setEditSuccess("");
+    setIsEditOpen(true);
+  };
+
+  const handleEdit = async () => {
+    if (!editTarget) return;
+    setEditError(""); setEditSuccess("");
+    if (!editNama.trim() || editNama.trim().length < 2) { setEditError("Nama produk minimal 2 karakter."); return; }
+    const isFisik = activeTab === "fisik";
+    if (isFisik && (!editKategori.trim() || editKategori.trim().length < 2)) { setEditError("Kategori wajib diisi."); return; }
+    if (isFisik) {
+      const h = parseInt(editHargaEceran);
+      if (isNaN(h) || h < 0) { setEditError("Harga eceran wajib diisi."); return; }
+    } else {
+      const a = parseInt(editBiayaAdmin);
+      if (isNaN(a) || a < 0) { setEditError("Biaya admin wajib diisi."); return; }
+    }
+    setIsEditSubmitting(true);
+    const body: Record<string, any> = { namaProduk: editNama.trim() };
+    if (isFisik) {
+      body.kategoriProduk = editKategori.trim();
+      body.kepemilikan = editKepemilikan;
+      const pricing: Record<string, any> = { eceran: { hargaJual: parseInt(editHargaEceran) } };
+      if (editGrosirList.length > 0) pricing.grosir = editGrosirList;
+      body.pricing = pricing;
+    } else {
+      body.kategoriProduk = "Digital";
+      body.kepemilikan = "sendiri";
+      body.biayaAdmin = parseInt(editBiayaAdmin);
+    }
+    try {
+      const res = await fetch(`/api/product/${activeTab}/${editTarget.kodeProduk}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        credentials: "include", body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setEditSuccess("Produk berhasil diperbarui!");
+        fetchProducts(activeTab);
+        setTimeout(() => setIsEditOpen(false), 1200);
+      } else {
+        setEditError(data.message || data.error || "Gagal memperbarui produk.");
+      }
+    } catch { setEditError("Terjadi kesalahan jaringan."); }
+    finally { setIsEditSubmitting(false); }
   };
 
   const addGrosirRow = () => {
@@ -207,10 +251,10 @@ export default function StokBarangPage() {
     if (!namaProduk.trim() || namaProduk.trim().length < 2) {
       setErrorMsg("Nama produk minimal 2 karakter."); return;
     }
-    if (!kategoriProduk.trim() || kategoriProduk.trim().length < 2) {
-      setErrorMsg("Kategori produk wajib diisi (minimal 2 karakter)."); return;
-    }
     if (formKategori === "fisik") {
+      if (!kategoriProduk.trim() || kategoriProduk.trim().length < 2) {
+        setErrorMsg("Kategori produk wajib diisi (minimal 2 karakter)."); return;
+      }
       const h = parseInt(hargaJualEceran);
       if (isNaN(h) || h < 0) { setErrorMsg("Harga eceran wajib diisi untuk produk fisik."); return; }
     }
@@ -221,15 +265,19 @@ export default function StokBarangPage() {
 
     setIsSubmitting(true);
 
-    const body: Record<string, any> = { namaProduk: namaProduk.trim(), kategoriProduk: kategoriProduk.trim(), kepemilikan };
+    const body: Record<string, any> = { namaProduk: namaProduk.trim() };
 
     if (formKategori === "fisik") {
+      body.kategoriProduk = kategoriProduk.trim();
+      body.kepemilikan = kepemilikan;
       const pricing: Record<string, any> = {};
       const h = parseInt(hargaJualEceran);
       pricing.eceran = { hargaJual: h };
       if (grosirList.length > 0) pricing.grosir = grosirList;
       body.pricing = pricing;
     } else {
+      body.kategoriProduk = "Digital";      // default wajib untuk backend
+      body.kepemilikan = "sendiri";         // default untuk produk digital
       body.biayaAdmin = parseInt(biayaAdmin);
     }
 
@@ -313,36 +361,50 @@ export default function StokBarangPage() {
                 </div>
 
                 {/* Nama & Kategori */}
-                <div className="grid gap-4 sm:grid-cols-2">
+                {formKategori === "fisik" ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-[13px] font-semibold text-zinc-800">Nama Produk <span className="text-red-500">*</span></Label>
+                      <Input value={namaProduk} onChange={(e) => setNamaProduk(e.target.value)}
+                        placeholder="Contoh: Indomie Goreng" required
+                        className="h-10 bg-[#f4f4f5] border-transparent focus-visible:ring-1 focus-visible:ring-zinc-300 text-sm rounded-lg" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[13px] font-semibold text-zinc-800">Kategori Produk <span className="text-red-500">*</span></Label>
+                      <Combobox
+                        value={kategoriProduk}
+                        onChange={setKategoriProduk}
+                        options={KATEGORI_PRESETS}
+                        placeholder="Pilih atau ketik kategori"
+                      />
+                    </div>
+                  </div>
+                ) : (
                   <div className="space-y-2">
                     <Label className="text-[13px] font-semibold text-zinc-800">Nama Produk <span className="text-red-500">*</span></Label>
                     <Input value={namaProduk} onChange={(e) => setNamaProduk(e.target.value)}
-                      placeholder="Contoh: Indomie Goreng" required
+                      placeholder="Contoh: Pulsa Telkomsel" required
                       className="h-10 bg-[#f4f4f5] border-transparent focus-visible:ring-1 focus-visible:ring-zinc-300 text-sm rounded-lg" />
                   </div>
+                )}
+
+                {/* Kepemilikan — hanya untuk produk fisik */}
+                {formKategori === "fisik" && (
                   <div className="space-y-2">
-                    <Label className="text-[13px] font-semibold text-zinc-800">Kategori Produk <span className="text-red-500">*</span></Label>
-                    <KategoriCombobox value={kategoriProduk} onChange={setKategoriProduk} />
-                  </div>
-                </div>
-
-                {/* Kepemilikan */}
-                <div className="space-y-2">
-                  <Label className="text-[13px] font-semibold text-zinc-800">Kepemilikan <span className="text-red-500">*</span></Label>
-                  <div className="relative">
-                    <select
+                    <Label className="text-[13px] font-semibold text-zinc-800">Kepemilikan <span className="text-red-500">*</span></Label>
+                    <Combobox
                       value={kepemilikan}
-                      onChange={(e) => setKepemilikan(e.target.value as "sendiri" | "titipan")}
-                      className="w-full h-10 px-3 pr-10 bg-[#f4f4f5] border-transparent rounded-xl text-sm font-medium text-zinc-700 outline-none focus:ring-1 focus:ring-zinc-300 appearance-none cursor-pointer"
-                    >
-                      <option value="sendiri">Barang Sendiri</option>
-                      <option value="titipan">Barang Titipan</option>
-                    </select>
-                    <IconSelector className="w-4 h-4 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      onChange={(v) => setKepemilikan(v as "sendiri" | "titipan")}
+                      options={[
+                        { value: "sendiri", label: "Barang Sendiri" },
+                        { value: "titipan", label: "Barang Titipan" },
+                      ]}
+                      placeholder="Pilih kepemilikan"
+                      allowCustomValue={false}
+                    />
                   </div>
-                </div>
-
-                {/* Harga Modal Penitip (only for titipan) */}
+                )}
+                {/* Harga Modal Penitip (only for titipan + fisik) */}
                 {kepemilikan === "titipan" && formKategori === "fisik" && (
                   <div className="space-y-2 bg-amber-50/50 border border-amber-200 rounded-lg p-4">
                     <Label className="text-[13px] font-semibold text-amber-800">
@@ -533,10 +595,10 @@ export default function StokBarangPage() {
                                 <IconStack2 className="h-4 w-4" stroke={1.5} />
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100" title="Edit produk">
+                            <Button variant="ghost" size="icon" onClick={() => openEditSheet(product)} className="h-8 w-8 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100" title="Edit produk">
                               <IconPencil className="h-4 w-4" stroke={1.5} />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(product.kodeProduk)} className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50" title="Hapus produk">
+                            <Button variant="ghost" size="icon" onClick={() => openDeleteDialog(product)} className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50" title="Hapus produk">
                               <IconTrash className="h-4 w-4" stroke={1.5} />
                             </Button>
                           </div>
@@ -552,22 +614,7 @@ export default function StokBarangPage() {
           {/* Pagination Footer */}
           {!isLoadingProducts && totalItems > 0 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-zinc-100 bg-zinc-50/50">
-              <div className="flex items-center gap-2 text-sm text-zinc-500">
-                <span>Tampilkan</span>
-                <div className="relative flex items-center">
-                  <select
-                    value={pageSize}
-                    onChange={(e) => setPageSize(Number(e.target.value))}
-                    className="bg-[#f4f4f5] text-zinc-700 text-sm font-medium rounded-xl h-9 px-3 pr-8 outline-none border-transparent cursor-pointer appearance-none animate-none"
-                  >
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                  <IconSelector className="w-3.5 h-3.5 text-zinc-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-                <span>data per halaman</span>
-              </div>
+              <PageSizeSelect value={pageSize} onChange={setPageSize} />
 
 
               <div className="flex items-center gap-2">
@@ -659,6 +706,157 @@ export default function StokBarangPage() {
             </Button>
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+    {/* ── Edit Sheet ─────────────────────────────────────────────────── */}
+    <Sheet open={isEditOpen} onOpenChange={(o) => { if (!o && !isEditSubmitting) setIsEditOpen(false); }}>
+      <SheetContent side="right" className="w-full sm:max-w-[480px] overflow-y-auto flex flex-col gap-0 p-0">
+        <SheetHeader className="px-6 py-5 border-b border-zinc-100">
+          <SheetTitle className="text-base font-semibold text-zinc-900">
+            Edit Produk {activeTab === "fisik" ? "Fisik" : "Digital"}
+          </SheetTitle>
+          {editTarget && (
+            <p className="text-xs text-zinc-400 font-mono mt-0.5">{editTarget.kodeProduk.slice(0, 8).toUpperCase()}</p>
+          )}
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {editError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+              <IconAlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" stroke={1.5} />
+              <p className="text-[13px] text-red-600 font-medium">{editError}</p>
+            </div>
+          )}
+          {editSuccess && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
+              <IconCheck className="w-4 h-4 text-green-600 shrink-0 mt-0.5" stroke={1.5} />
+              <p className="text-[13px] text-green-700 font-medium">{editSuccess}</p>
+            </div>
+          )}
+
+          {/* Nama */}
+          <div className="space-y-2">
+            <Label className="text-[13px] font-semibold text-zinc-800">Nama Produk <span className="text-red-500">*</span></Label>
+            <Input value={editNama} onChange={(e) => setEditNama(e.target.value)}
+              placeholder="Nama produk" className="h-10 bg-[#f4f4f5] border-transparent focus-visible:ring-1 focus-visible:ring-zinc-300 text-sm rounded-lg" />
+          </div>
+
+          {/* Fisik-only fields */}
+          {activeTab === "fisik" && (
+            <>
+              <div className="space-y-2">
+                <Label className="text-[13px] font-semibold text-zinc-800">Kategori Produk <span className="text-red-500">*</span></Label>
+                <Combobox value={editKategori} onChange={setEditKategori} options={KATEGORI_PRESETS} placeholder="Pilih atau ketik kategori" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[13px] font-semibold text-zinc-800">Kepemilikan <span className="text-red-500">*</span></Label>
+                <Combobox
+                  value={editKepemilikan}
+                  onChange={(v) => setEditKepemilikan(v as "sendiri" | "titipan")}
+                  options={[{ value: "sendiri", label: "Barang Sendiri" }, { value: "titipan", label: "Barang Titipan" }]}
+                  placeholder="Pilih kepemilikan"
+                  allowCustomValue={false}
+                />
+              </div>
+              <div className="space-y-2 border-t border-zinc-100 pt-4">
+                <Label className="text-[13px] font-semibold text-zinc-800">Harga Eceran <span className="text-red-500">*</span></Label>
+                <Input type="number" value={editHargaEceran} onChange={(e) => setEditHargaEceran(e.target.value)}
+                  placeholder="Contoh: 3500" min={0} className="h-10 bg-[#f4f4f5] border-transparent focus-visible:ring-1 focus-visible:ring-zinc-300 text-sm rounded-lg" />
+              </div>
+              {/* Grosir list read-only summary */}
+              {editGrosirList.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-[13px] font-semibold text-zinc-800">Harga Grosir</Label>
+                  <div className="space-y-1.5">
+                    {editGrosirList.map((g, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-zinc-50 px-3 py-2 rounded-lg text-sm">
+                        <span className="flex-1 text-zinc-700">Beli ≥ <strong>{g.jumlah}</strong> pcs → <strong>{formatRupiah(g.hargaJual)}</strong>/pcs</span>
+                        <button type="button" onClick={() => setEditGrosirList(editGrosirList.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600">
+                          <IconTrash className="w-3.5 h-3.5" stroke={1.5} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Digital-only fields */}
+          {activeTab === "digital" && (
+            <div className="space-y-2">
+              <Label className="text-[13px] font-semibold text-zinc-800">Biaya Admin <span className="text-red-500">*</span></Label>
+              <Input type="number" value={editBiayaAdmin} onChange={(e) => setEditBiayaAdmin(e.target.value)}
+                placeholder="Contoh: 2500" min={0} className="h-10 bg-[#f4f4f5] border-transparent focus-visible:ring-1 focus-visible:ring-zinc-300 text-sm rounded-lg" />
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-zinc-100 bg-zinc-50/50 flex gap-3 justify-end">
+          <Button variant="outline" onClick={() => setIsEditOpen(false)} disabled={isEditSubmitting} className="h-10 px-5 rounded-lg">
+            Batal
+          </Button>
+          <Button onClick={handleEdit} disabled={isEditSubmitting} className="h-10 px-6 bg-[#09090b] hover:bg-[#27272a] text-white rounded-lg font-medium">
+            {isEditSubmitting ? (
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Menyimpan...
+              </span>
+            ) : "Simpan Perubahan"}
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+
+    {/* ── Delete Dialog ───────────────────────────────────────────────── */}
+    <Dialog open={isDeleteOpen} onOpenChange={(o) => { if (!o && !isDeleting) { setIsDeleteOpen(false); setDeleteTarget(null); } }}>
+      <DialogContent className="sm:max-w-[380px]">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+              <IconAlertTriangle className="w-5 h-5 text-red-500" stroke={2} />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-semibold text-zinc-900">Hapus Produk?</DialogTitle>
+              <DialogDescription className="text-[13px] text-zinc-500 mt-0.5">
+                Tindakan ini tidak dapat dibatalkan.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {deleteTarget && (
+          <div className="rounded-lg border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm space-y-1.5">
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Nama</span>
+              <span className="font-medium text-zinc-900 text-right max-w-[200px] truncate">{deleteTarget.namaProduk}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Kode</span>
+              <span className="font-mono text-xs text-zinc-600">{deleteTarget.kodeProduk.slice(0, 8).toUpperCase()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Tipe</span>
+              <span className="font-medium text-zinc-700 capitalize">{activeTab}</span>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { setIsDeleteOpen(false); setDeleteTarget(null); }} disabled={isDeleting}>
+            Batal
+          </Button>
+          <Button onClick={handleDelete} disabled={isDeleting}
+            className="bg-red-600 hover:bg-red-500 text-white font-medium">
+            {isDeleting ? (
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Menghapus...
+              </span>
+            ) : "Hapus Produk"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
     </>

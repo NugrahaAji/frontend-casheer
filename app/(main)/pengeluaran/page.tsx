@@ -23,12 +23,12 @@ import {
   IconSearch,
   IconPackage,
   IconAlertTriangle,
-  IconSelector,
   IconChevronLeft,
   IconChevronRight,
   IconTrash,
   IconBoxOff,
 } from "@tabler/icons-react";
+import { PageSizeSelect } from "@/components/ui/native-select";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -384,22 +384,7 @@ export default function PengeluaranPage() {
           {/* Pagination */}
           {totalItems > 0 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-zinc-100 bg-zinc-50/50">
-              <div className="flex items-center gap-2 text-sm text-zinc-500">
-                <span>Tampilkan</span>
-                <div className="relative flex items-center">
-                  <select
-                    value={pageSize}
-                    onChange={(e) => setPageSize(Number(e.target.value))}
-                    className="bg-[#f4f4f5] text-zinc-700 text-sm font-medium rounded-xl h-9 px-3 pr-8 outline-none border-transparent cursor-pointer appearance-none"
-                  >
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                  <IconSelector className="w-3.5 h-3.5 text-zinc-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-                <span>data per halaman</span>
-              </div>
+              <PageSizeSelect value={pageSize} onChange={setPageSize} />
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"

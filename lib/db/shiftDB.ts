@@ -6,9 +6,8 @@
  */
 
 const DB_NAME = "casheer_db";
-const DB_VERSION = 3; // harus sama dengan productDB.ts & transactionDB.ts
+const DB_VERSION = 4; // harus sama dengan productDB.ts & transactionDB.ts
 const STORE_NAME = "active_shift";
-
 
 export interface ShiftSession {
   id: "current"; // Hanya ada 1 shift aktif pada satu waktu
@@ -32,9 +31,23 @@ function openDB(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        // key path adalah 'id' — hanya ada 1 record dengan id="current"
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      if (!db.objectStoreNames.contains("active_shift")) {
+        db.createObjectStore("active_shift", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("products_cache")) {
+        db.createObjectStore("products_cache", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("products_meta")) {
+        db.createObjectStore("products_meta", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("transactions_cache")) {
+        db.createObjectStore("transactions_cache", { keyPath: "_id" });
+      }
+      if (!db.objectStoreNames.contains("transactions_meta")) {
+        db.createObjectStore("transactions_meta", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("pending_transactions")) {
+        db.createObjectStore("pending_transactions", { keyPath: "localId" });
       }
     };
 

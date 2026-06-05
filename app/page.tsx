@@ -21,6 +21,10 @@ export default function LoginPage() {
     setIsLoading(true);
     setErrorMsg("");
 
+    // Timeout 15 detik — cukup untuk bcrypt + MongoDB cold start
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -28,9 +32,11 @@ export default function LoginPage() {
           "Content-Type": "application/json",
         },
         credentials: "include",
+        signal: controller.signal,
         body: JSON.stringify({ username, password }),
       });
 
+      clearTimeout(timeoutId);
       const data = await response.json();
 
       if (response.ok && data.success) {
@@ -52,8 +58,13 @@ export default function LoginPage() {
       } else {
         setErrorMsg(data.message || "Gagal melakukan login. Periksa kembali kredensial Anda.");
       }
-    } catch (error) {
-      setErrorMsg("Terjadi kesalahan jaringan. Tidak dapat terhubung ke server.");
+    } catch (error: unknown) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === "AbortError") {
+        setErrorMsg("Koneksi timeout. Server membutuhkan waktu terlalu lama — coba lagi.");
+      } else {
+        setErrorMsg("Tidak dapat terhubung ke server. Pastikan server berjalan dan coba lagi.");
+      }
     } finally {
       setIsLoading(false);
     }
