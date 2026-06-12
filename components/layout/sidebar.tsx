@@ -15,6 +15,8 @@ import {
   IconArrowBackUp,
 } from "@tabler/icons-react";
 import { usePathname, useRouter } from "next/navigation";
+import { InstallPWAButton } from "@/components/pwa/InstallPWAButton";
+import { Download } from "lucide-react";
 
 type NavItem = {
   href: string;
@@ -212,9 +214,14 @@ export function MainSidebar({ className = "" }: { className?: string }) {
             ))}
       </nav>
 
-      {/* Logout */}
-      <div className="p-4 mb-2">
-        <hr className="mb-3 border-zinc-200" />
+      {/* Install PWA + Logout */}
+      <div className="p-4 mb-2 flex flex-col gap-1">
+        <InstallPWAButton
+          className="w-full flex items-center gap-3 px-3 py-2.5 text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 rounded-lg font-medium text-[15px] transition-colors"
+          icon={<Download className="w-5 h-5" strokeWidth={1.5} />}
+          label="Install App"
+        />
+        <hr className="my-1 border-zinc-200" />
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg font-medium text-[15px] transition-colors"
